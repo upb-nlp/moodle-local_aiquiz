@@ -46,7 +46,6 @@ function local_aiquiz_extend_navigation_course($navigation, $course, $context) {
         $url,
         navigation_node::TYPE_SETTING,
         null,
-        'local_aiquiz',
-        new pix_icon('i/star', '')
+        'local_aiquiz'
     );
 }

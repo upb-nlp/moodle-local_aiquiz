@@ -38,9 +38,34 @@ $PAGE->set_pagelayout('incourse');
 $PAGE->set_title(get_string('pluginname', 'local_aiquiz'));
 $PAGE->set_heading($course->fullname);
 
+$courseurl = new moodle_url('/course/view.php', ['id' => $course->id]);
+
+// Section names to offer as the destination for the generated quiz.
+$sections = [];
+$modinfo = get_fast_modinfo($course);
+foreach ($modinfo->get_section_info_all() as $sectioninfo) {
+    $sections[$sectioninfo->section] = get_section_name($course, $sectioninfo);
+}
+
+$form = new \local_aiquiz\form\generate_form(null, [
+    'course' => $course,
+    'files' => \local_aiquiz\file_lister::list_course_files($course->id),
+    'sections' => $sections,
+]);
+
+if ($form->is_cancelled()) {
+    redirect($courseurl);
+} else if ($data = $form->get_data()) {
+    // Next step: create the job, the empty quiz, and call the generation API.
+    // For now, show what the form produced so the wiring can be verified.
+    echo $OUTPUT->header();
+    echo $OUTPUT->heading(get_string('pluginname', 'local_aiquiz'));
+    echo html_writer::tag('pre', s(print_r($data, true)));
+    echo $OUTPUT->footer();
+    die();
+}
+
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('pluginname', 'local_aiquiz'));
-
-// The generation form goes here.
-
+$form->display();
 echo $OUTPUT->footer();
