@@ -39,7 +39,7 @@ function local_aiquiz_extend_navigation_course($navigation, $course, $context) {
         return;
     }
 
-    $url = new moodle_url('/local/aiquiz/create.php', ['courseid' => $course->id]);
+    $url = new moodle_url('/local/aiquiz/index.php', ['courseid' => $course->id]);
 
     $navigation->add(
         get_string('pluginname', 'local_aiquiz'),

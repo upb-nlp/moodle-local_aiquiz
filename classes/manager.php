@@ -1,0 +1,322 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+
+/**
+ * The generation job workflow: create, publish, unpublish, delete.
+ *
+ * @package    local_aiquiz
+ * @copyright  2026 NLP Reseach Lab
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+namespace local_aiquiz;
+
+use local_aiquiz\form\generate_form;
+
+defined('MOODLE_INTERNAL') || die();
+
+/**
+ * Creates generated quizzes as hidden drafts and manages their lifecycle.
+ *
+ * A quiz stays hidden (visible only to teachers) until the requesting
+ * teacher reviews the generated questions and publishes it, which simply
+ * flips the course module's visibility.
+ */
+class manager {
+
+    /** @var string Waiting for the generation service. */
+    const STATUS_PENDING = 'pending';
+    /** @var string Questions were generated successfully. */
+    const STATUS_DONE = 'done';
+    /** @var string The generation service reported an error. */
+    const STATUS_FAILED = 'failed';
+
+    /** @var string Dashboard state: questions are being generated. */
+    const STATE_GENERATING = 'generating';
+    /** @var string Dashboard state: generated, waiting for teacher review. */
+    const STATE_READY = 'ready';
+    /** @var string Dashboard state: visible to students. */
+    const STATE_PUBLISHED = 'published';
+    /** @var string Dashboard state: generation failed. */
+    const STATE_FAILED = 'failed';
+
+    /**
+     * Create the hidden quiz and the job row for a submitted generation form.
+     *
+     * @param \stdClass $formdata Data returned by generate_form::get_data().
+     * @param \stdClass $course The course the quiz belongs to.
+     * @return \stdClass The new job record.
+     */
+    public static function create_job(\stdClass $formdata, \stdClass $course): \stdClass {
+        global $DB, $USER;
+
+        $quizid = self::create_hidden_quiz($formdata, $course);
+
+        $job = new \stdClass();
+        $job->requestid = \core\uuid::generate();
+        $job->courseid = $course->id;
+        $job->quizid = $quizid;
+        $job->userid = $USER->id;
+        $job->status = self::STATUS_PENDING;
+        $job->published = 0;
+        $job->params = json_encode(self::build_params($formdata));
+        $job->timecreated = time();
+        $job->timemodified = $job->timecreated;
+        $job->id = $DB->insert_record('local_aiquiz_jobs', $job);
+
+        // TODO: send the generation request (requestid + params + files) to the
+        // AI service. Until the client and its callback exist the job stays
+        // pending and the quiz stays an empty hidden draft.
+
+        return $job;
+    }
+
+    /**
+     * Make the quiz visible to students and record the approval.
+     *
+     * @param \stdClass $job The job record.
+     */
+    public static function publish(\stdClass $job): void {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/course/lib.php');
+
+        if ($job->status !== self::STATUS_DONE) {
+            throw new \moodle_exception('errorjobnotdone', 'local_aiquiz');
+        }
+
+        $cm = get_coursemodule_from_instance('quiz', $job->quizid, $job->courseid, false, MUST_EXIST);
+        set_coursemodule_visible($cm->id, 1);
+        \core\event\course_module_updated::create_from_cm($cm)->trigger();
+
+        $job->published = 1;
+        $job->timepublished = time();
+        $job->timemodified = time();
+        $DB->update_record('local_aiquiz_jobs', $job);
+    }
+
+    /**
+     * Hide a published quiz from students again.
+     *
+     * @param \stdClass $job The job record.
+     */
+    public static function unpublish(\stdClass $job): void {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/course/lib.php');
+
+        $cm = get_coursemodule_from_instance('quiz', $job->quizid, $job->courseid, false, MUST_EXIST);
+        set_coursemodule_visible($cm->id, 0);
+        \core\event\course_module_updated::create_from_cm($cm)->trigger();
+
+        $job->published = 0;
+        $job->timemodified = time();
+        $DB->update_record('local_aiquiz_jobs', $job);
+    }
+
+    /**
+     * Delete the quiz activity (if it still exists) and the job row.
+     *
+     * @param \stdClass $job The job record.
+     */
+    public static function delete(\stdClass $job): void {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/course/lib.php');
+
+        if ($job->quizid && ($cm = get_coursemodule_from_instance('quiz', $job->quizid, $job->courseid))) {
+            course_delete_module($cm->id);
+        }
+        $DB->delete_records('local_aiquiz_jobs', ['id' => $job->id]);
+    }
+
+    /**
+     * All generation jobs in a course, newest first.
+     *
+     * Each record carries the quiz name, the course module id and the
+     * creator's name fields (so fullname() works on it). quizname and cmid
+     * are null when the quiz activity was deleted outside the plugin.
+     *
+     * @param int $courseid
+     * @return \stdClass[]
+     */
+    public static function get_course_jobs(int $courseid): array {
+        global $DB;
+
+        $namefields = \core_user\fields::for_name()->get_sql('u')->selects;
+
+        $sql = "SELECT j.*, q.name AS quizname, cm.id AS cmid $namefields
+                  FROM {local_aiquiz_jobs} j
+             LEFT JOIN {quiz} q ON q.id = j.quizid
+             LEFT JOIN {modules} m ON m.name = 'quiz'
+             LEFT JOIN {course_modules} cm ON cm.instance = j.quizid
+                       AND cm.module = m.id AND cm.course = j.courseid
+             LEFT JOIN {user} u ON u.id = j.userid
+                 WHERE j.courseid = :courseid
+              ORDER BY j.timecreated DESC";
+
+        return $DB->get_records_sql($sql, ['courseid' => $courseid]);
+    }
+
+    /**
+     * Map a job onto the state shown on the dashboard.
+     *
+     * @param \stdClass $job The job record.
+     * @return string One of the STATE_* constants.
+     */
+    public static function get_state(\stdClass $job): string {
+        if ($job->status === self::STATUS_FAILED) {
+            return self::STATE_FAILED;
+        }
+        if ($job->status === self::STATUS_DONE) {
+            return $job->published ? self::STATE_PUBLISHED : self::STATE_READY;
+        }
+        return self::STATE_GENERATING;
+    }
+
+    /**
+     * Total number of questions requested for a job.
+     *
+     * @param \stdClass $job The job record.
+     * @return int
+     */
+    public static function count_questions(\stdClass $job): int {
+        $params = json_decode($job->params ?? '', true);
+        if (empty($params['questions'])) {
+            return 0;
+        }
+        return array_sum(array_column($params['questions'], 'count'));
+    }
+
+    /**
+     * Turn the form submission into the request payload stored on the job.
+     *
+     * @param \stdClass $formdata Data returned by generate_form::get_data().
+     * @return array
+     */
+    protected static function build_params(\stdClass $formdata): array {
+        $questions = [];
+        foreach (generate_form::get_types() as $key => $meta) {
+            if (empty($formdata->{"enable{$key}"})) {
+                continue;
+            }
+            $questions[] = [
+                'type' => $meta['type'],
+                'single' => $meta['single'],
+                'count' => (int) $formdata->{"count{$key}"},
+                'answers_per_question' => $meta['answers']
+                    ? (int) $formdata->{"answers{$key}"} : null,
+                'difficulty' => [
+                    'easy' => (int) $formdata->{"difficulty{$key}"}['easy'],
+                    'medium' => (int) $formdata->{"difficulty{$key}"}['medium'],
+                    'hard' => (int) $formdata->{"difficulty{$key}"}['hard'],
+                ],
+            ];
+        }
+
+        return [
+            'quizname' => $formdata->quizname,
+            'language' => $formdata->language,
+            'learning_objectives' => trim($formdata->learningobjectives ?? ''),
+            'fileids' => array_map('intval', $formdata->fileids ?? []),
+            'questions' => $questions,
+        ];
+    }
+
+    /**
+     * Create the empty quiz activity, hidden from students.
+     *
+     * @param \stdClass $formdata Data returned by generate_form::get_data().
+     * @param \stdClass $course The course the quiz belongs to.
+     * @return int The new quiz instance id.
+     */
+    protected static function create_hidden_quiz(\stdClass $formdata, \stdClass $course): int {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/course/modlib.php');
+
+        $config = get_config('quiz');
+
+        $moduleinfo = new \stdClass();
+        $moduleinfo->modulename = 'quiz';
+        $moduleinfo->module = $DB->get_field('modules', 'id', ['name' => 'quiz'], MUST_EXIST);
+        $moduleinfo->course = $course->id;
+        $moduleinfo->section = $formdata->section;
+        $moduleinfo->name = $formdata->quizname;
+        $moduleinfo->intro = '';
+        $moduleinfo->introformat = FORMAT_HTML;
+
+        // The draft state: hidden means only users who can view hidden
+        // activities (teachers) see the quiz until it is published.
+        $moduleinfo->visible = 0;
+        $moduleinfo->visibleoncoursepage = 1;
+
+        $moduleinfo->cmidnumber = '';
+        $moduleinfo->groupmode = NOGROUPS;
+        $moduleinfo->groupingid = 0;
+        $moduleinfo->completion = COMPLETION_TRACKING_NONE;
+        $moduleinfo->completionview = 0;
+        $moduleinfo->completionexpected = 0;
+        $moduleinfo->completiongradeitemnumber = null;
+
+        // Quiz settings from the module's site defaults.
+        $moduleinfo->timeopen = 0;
+        $moduleinfo->timeclose = 0;
+        $moduleinfo->timelimit = $config->timelimit ?? 0;
+        $moduleinfo->overduehandling = $config->overduehandling ?? 'autosubmit';
+        $moduleinfo->graceperiod = $config->graceperiod ?? 86400;
+        $moduleinfo->preferredbehaviour = $config->preferredbehaviour ?? 'deferredfeedback';
+        $moduleinfo->canredoquestions = $config->canredoquestions ?? 0;
+        $moduleinfo->attempts = $config->attempts ?? 0;
+        $moduleinfo->attemptonlast = $config->attemptonlast ?? 0;
+        $moduleinfo->grademethod = $config->grademethod ?? 1;
+        $moduleinfo->grade = $config->maximumgrade ?? 10;
+        $moduleinfo->decimalpoints = $config->decimalpoints ?? 2;
+        $moduleinfo->questiondecimalpoints = $config->questiondecimalpoints ?? -1;
+        $moduleinfo->questionsperpage = $config->questionsperpage ?? 1;
+        $moduleinfo->navmethod = $config->navmethod ?? 'free';
+        $moduleinfo->shuffleanswers = $config->shuffleanswers ?? 1;
+        $moduleinfo->browsersecurity = $config->browsersecurity ?? '-';
+        $moduleinfo->delay1 = $config->delay1 ?? 0;
+        $moduleinfo->delay2 = $config->delay2 ?? 0;
+        $moduleinfo->showuserpicture = $config->showuserpicture ?? 0;
+        $moduleinfo->showblocks = $config->showblocks ?? 0;
+        $moduleinfo->quizpassword = '';
+        $moduleinfo->subnet = '';
+        $moduleinfo->seb_requiresafeexambrowser = 0;
+
+        // Review options: translate the site default bitmasks into the
+        // per-phase checkbox fields quiz_process_options() expects.
+        $phases = [
+            'during' => \mod_quiz\question\display_options::DURING,
+            'immediately' => \mod_quiz\question\display_options::IMMEDIATELY_AFTER,
+            'open' => \mod_quiz\question\display_options::LATER_WHILE_OPEN,
+            'closed' => \mod_quiz\question\display_options::AFTER_CLOSE,
+        ];
+        $reviewfields = ['attempt', 'correctness', 'marks', 'maxmarks',
+            'specificfeedback', 'generalfeedback', 'rightanswer', 'overallfeedback'];
+        foreach ($reviewfields as $field) {
+            $mask = (int) ($config->{'review' . $field} ?? 0);
+            foreach ($phases as $suffix => $bit) {
+                $moduleinfo->{$field . $suffix} = ($mask & $bit) ? 1 : 0;
+            }
+        }
+
+        // Overall feedback: one empty entry, as the quiz form submits.
+        $moduleinfo->feedbacktext = [['text' => '', 'format' => FORMAT_HTML]];
+        $moduleinfo->feedbackboundaries = [];
+
+        $moduleinfo = add_moduleinfo($moduleinfo, $course);
+
+        return (int) $moduleinfo->instance;
+    }
+}

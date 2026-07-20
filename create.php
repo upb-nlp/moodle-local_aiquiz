@@ -38,7 +38,7 @@ $PAGE->set_pagelayout('incourse');
 $PAGE->set_title(get_string('pluginname', 'local_aiquiz'));
 $PAGE->set_heading($course->fullname);
 
-$courseurl = new moodle_url('/course/view.php', ['id' => $course->id]);
+$dashboardurl = new moodle_url('/local/aiquiz/index.php', ['courseid' => $course->id]);
 
 // Section names to offer as the destination for the generated quiz.
 $sections = [];
@@ -54,15 +54,13 @@ $form = new \local_aiquiz\form\generate_form(null, [
 ]);
 
 if ($form->is_cancelled()) {
-    redirect($courseurl);
+    redirect($dashboardurl);
 } else if ($data = $form->get_data()) {
-    // Next step: create the job, the empty quiz, and call the generation API.
-    // For now, show what the form produced so the wiring can be verified.
-    echo $OUTPUT->header();
-    echo $OUTPUT->heading(get_string('pluginname', 'local_aiquiz'));
-    echo html_writer::tag('pre', s(print_r($data, true)));
-    echo $OUTPUT->footer();
-    die();
+    // Create the hidden draft quiz and its job record, then land the
+    // teacher on the dashboard where the job's progress is shown.
+    \local_aiquiz\manager::create_job($data, $course);
+    redirect($dashboardurl, get_string('generationstarted', 'local_aiquiz'), null,
+        \core\output\notification::NOTIFY_SUCCESS);
 }
 
 echo $OUTPUT->header();
