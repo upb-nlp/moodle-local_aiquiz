@@ -77,11 +77,66 @@ class manager {
         $job->timemodified = $job->timecreated;
         $job->id = $DB->insert_record('local_aiquiz_jobs', $job);
 
-        // TODO: send the generation request (requestid + params + files) to the
-        // AI service. Until the client and its callback exist the job stays
-        // pending and the quiz stays an empty hidden draft.
+        // Hand the transfer to cron. The adhoc task builds the manifest and
+        // POSTs it to the generation service out of the teacher's web request,
+        // so a slow request or many large files never times out the page. The
+        // quiz stays a hidden empty draft (status pending) until the service
+        // pulls the files and calls back with the questions.
+        $task = new \local_aiquiz\task\generate_task();
+        $task->set_custom_data(['jobid' => $job->id]);
+        $task->set_userid($USER->id);
+        \core\task\manager::queue_adhoc_task($task);
 
         return $job;
+    }
+
+    /**
+     * Build the request payload sent to the generation service.
+     *
+     * The manifest is small: it never carries the file bytes. Each file is
+     * described by a tokenpluginfile.php URL that lets the service pull the
+     * content itself. The token is a per-user core_files key, so the service
+     * can only reach files the requesting teacher could already see, and only
+     * while the key is valid.
+     *
+     * @param \stdClass $job The job record.
+     * @return array The JSON-ready manifest.
+     */
+    public static function build_manifest(\stdClass $job): array {
+        $params = json_decode($job->params ?? '', true) ?: [];
+        $files = file_lister::get_files_by_ids($params['fileids'] ?? [], $job->courseid);
+
+        $manifestfiles = [];
+        foreach ($files as $file) {
+            // includetoken = userid: mint a tokenpluginfile.php URL scoped to
+            // the teacher, so the pull is authorised as them.
+            $url = \moodle_url::make_pluginfile_url(
+                $file->get_contextid(),
+                $file->get_component(),
+                $file->get_filearea(),
+                $file->get_itemid(),
+                $file->get_filepath(),
+                $file->get_filename(),
+                true,
+                $job->userid
+            );
+            $manifestfiles[] = [
+                'filename' => $file->get_filename(),
+                'filesize' => (int) $file->get_filesize(),
+                'mimetype' => $file->get_mimetype(),
+                // Lets the service skip a file it already cached from an
+                // earlier quiz that used the same material.
+                'contenthash' => $file->get_contenthash(),
+                'url' => $url->out(false),
+            ];
+        }
+
+        return [
+            'requestid' => $job->requestid,
+            'callback' => (new \moodle_url('/local/aiquiz/callback.php'))->out(false),
+            'params' => $params,
+            'files' => $manifestfiles,
+        ];
     }
 
     /**
