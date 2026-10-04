@@ -184,7 +184,7 @@ final class manager_test extends \advanced_testcase {
         $this->assertSame(['total_questions', 'language', 'learning_objectives', 'question_types'],
             array_keys($request['generation']));
         $this->assertSame($job->requestid, $request['request_id']);
-        $this->assertSame(manager::IMPORT_CALLBACK_URL, $request['callback_url']);
+        $this->assertSame(manager::callback_url($job->requestid), $request['callback_url']);
         $this->assertSame('ro', $request['generation']['language']);
         $this->assertSame('Understand chapter 1', $request['generation']['learning_objectives']);
         $this->assertSame([], $request['source_files']);
@@ -267,16 +267,16 @@ final class manager_test extends \advanced_testcase {
     }
 
     /**
-     * Results are delivered to the HRIA import API, not to this plugin.
+     * Results are delivered to the plugin's callback, carrying the job's key.
      *
-     * Locking this stops the per-job key being assumed to travel with the
-     * request: it does not, because the callback URL carries no key at all.
+     * The key in the URL is the only thing that authenticates a delivery, so
+     * a callback URL without it would have every delivery refused with 401.
      */
-    public function test_callback_url_is_the_import_api(): void {
-        $url = manager::callback_url('any-request-id');
+    public function test_callback_url_points_at_the_plugin_with_the_job_key(): void {
+        $url = new \moodle_url(manager::callback_url('any-request-id'));
 
-        $this->assertSame(manager::IMPORT_CALLBACK_URL, $url);
-        $this->assertStringNotContainsString('key=', $url);
+        $this->assertSame('/local/aiquiz/callback.php', $url->get_path(false));
+        $this->assertSame(manager::callback_key('any-request-id'), $url->get_param('key'));
     }
 
     /**

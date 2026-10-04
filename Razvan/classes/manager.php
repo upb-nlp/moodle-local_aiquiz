@@ -53,12 +53,6 @@ class manager {
     /** @var string Dashboard state: generation failed. */
     const STATE_FAILED = 'failed';
 
-    /** @var string Where the generation service posts a finished job. The HRIA
-     * import API imports the questions into Moodle; it is not part of this
-     * plugin. */
-    const IMPORT_CALLBACK_URL =
-        'https://moodle.readerbench.com/hria-edu/api/v1/moodle/question-bank/import-in-moodle';
-
     /**
      * Create the hidden quiz and the job row for a submitted generation form.
      *
@@ -162,25 +156,21 @@ class manager {
     /**
      * Where the generation service delivers a finished job.
      *
-     * This is the HRIA import API, not this plugin: it receives the generated
-     * questions and imports them into Moodle itself. The plugin's own
-     * callback.php is therefore not in the delivery path, and a job's status
-     * here is not advanced by it - see the note on callback_key().
+     * The plugin's own callback.php, which imports the questions into the
+     * job's quiz. The per-job key it carries is what authenticates the
+     * delivery: the configured token proves us to the service, not the
+     * service to us.
      *
      * @param string $requestid The job's requestid.
      * @return string
      */
     public static function callback_url(string $requestid): string {
-        return self::IMPORT_CALLBACK_URL;
+        $url = new \moodle_url('/local/aiquiz/callback.php', ['key' => self::callback_key($requestid)]);
+        return $url->out(false);
     }
 
     /**
      * The secret that proves a callback belongs to a job we created.
-     *
-     * Still used by callback.php, but nothing points the service at that URL
-     * any more: results go to the HRIA import API instead. Kept so the
-     * endpoint stays usable - by dev/mock_service.php, or if delivery is ever
-     * pointed back here - rather than left unauthenticated.
      *
      * @param string $requestid The job's requestid.
      * @return string

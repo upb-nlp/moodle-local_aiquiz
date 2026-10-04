@@ -92,6 +92,10 @@ final class lang_test extends \advanced_testcase {
             'erroranswersperquestion',
             'errordifficultysum',
             'errortoomanyquestions',
+            'errorimportfailed',
+            'errornoquestionsdelivered',
+            'errornovalidquestions',
+            'errorquizmissing',
         ];
 
         foreach ($errorcodes as $errorcode) {
