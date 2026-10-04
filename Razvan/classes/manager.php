@@ -53,6 +53,12 @@ class manager {
     /** @var string Dashboard state: generation failed. */
     const STATE_FAILED = 'failed';
 
+    /** @var string Where the generation service posts a finished job. The HRIA
+     * import API imports the questions into Moodle; it is not part of this
+     * plugin. */
+    const IMPORT_CALLBACK_URL =
+        'https://moodle.readerbench.com/hria-edu/api/v1/moodle/question-bank/import-in-moodle';
+
     /**
      * Create the hidden quiz and the job row for a submitted generation form.
      *
@@ -77,7 +83,7 @@ class manager {
         $job->timemodified = $job->timecreated;
         $job->id = $DB->insert_record('local_aiquiz_jobs', $job);
 
-        // Hand the transfer to cron. The adhoc task builds the manifest and
+        // Hand the transfer to cron. The adhoc task builds the request and
         // POSTs it to the generation service out of the teacher's web request,
         // so a slow request or many large files never times out the page. The
         // quiz stays a hidden empty draft (status pending) until the service
@@ -93,20 +99,26 @@ class manager {
     /**
      * Build the request payload sent to the generation service.
      *
-     * The manifest is small: it never carries the file bytes. Each file is
+     * The body is small: it never carries the file bytes. Each file is
      * described by a tokenpluginfile.php URL that lets the service pull the
-     * content itself. The token is a per-user core_files key, so the service
-     * can only reach files the requesting teacher could already see, and only
-     * while the key is valid.
+     * content itself.
+     *
+     * Mind what that token is: get_user_key('core_files', $userid), created
+     * with no validuntil and no iprestriction, and reused across jobs. It
+     * authenticates the teacher rather than the file, so it reaches anything
+     * they can read through tokenpluginfile.php, it does not expire, and the
+     * same value leaves the site in every request. Minting a short-lived key
+     * per job would need the URL built by hand, since make_pluginfile_url()
+     * does not expose get_user_key()'s $validuntil.
      *
      * @param \stdClass $job The job record.
-     * @return array The JSON-ready manifest.
+     * @return array The JSON-ready request body.
      */
-    public static function build_manifest(\stdClass $job): array {
+    public static function build_request(\stdClass $job): array {
         $params = json_decode($job->params ?? '', true) ?: [];
         $files = file_lister::get_files_by_ids($params['fileids'] ?? [], $job->courseid);
 
-        $manifestfiles = [];
+        $sourcefiles = [];
         foreach ($files as $file) {
             // includetoken = userid: mint a tokenpluginfile.php URL scoped to
             // the teacher, so the pull is authorised as them.
@@ -120,23 +132,102 @@ class manager {
                 true,
                 $job->userid
             );
-            $manifestfiles[] = [
+            $sourcefiles[] = [
+                'file_id' => (string) $file->get_id(),
                 'filename' => $file->get_filename(),
-                'filesize' => (int) $file->get_filesize(),
-                'mimetype' => $file->get_mimetype(),
-                // Lets the service skip a file it already cached from an
-                // earlier quiz that used the same material.
-                'contenthash' => $file->get_contenthash(),
+                'mime_type' => $file->get_mimetype(),
                 'url' => $url->out(false),
+                // The service treats this as optional. Moodle's contenthash is
+                // SHA-1, so it cannot be reused, and hashing every file just to
+                // fill the field would mean reading them all for nothing.
+                'checksum_sha256' => null,
             ];
         }
 
+        $types = self::build_question_types($params['questions'] ?? []);
+
         return [
-            'requestid' => $job->requestid,
-            'callback' => (new \moodle_url('/local/aiquiz/callback.php'))->out(false),
-            'params' => $params,
-            'files' => $manifestfiles,
+            'request_id' => $job->requestid,
+            'callback_url' => self::callback_url($job->requestid),
+            'generation' => [
+                'total_questions' => array_sum(array_column($types, 'count')),
+                'language' => $params['language'] ?? '',
+                'learning_objectives' => $params['learning_objectives'] ?? '',
+                'question_types' => $types,
+            ],
+            'source_files' => $sourcefiles,
         ];
+    }
+
+    /**
+     * Where the generation service delivers a finished job.
+     *
+     * This is the HRIA import API, not this plugin: it receives the generated
+     * questions and imports them into Moodle itself. The plugin's own
+     * callback.php is therefore not in the delivery path, and a job's status
+     * here is not advanced by it - see the note on callback_key().
+     *
+     * @param string $requestid The job's requestid.
+     * @return string
+     */
+    public static function callback_url(string $requestid): string {
+        return self::IMPORT_CALLBACK_URL;
+    }
+
+    /**
+     * The secret that proves a callback belongs to a job we created.
+     *
+     * Still used by callback.php, but nothing points the service at that URL
+     * any more: results go to the HRIA import API instead. Kept so the
+     * endpoint stays usable - by dev/mock_service.php, or if delivery is ever
+     * pointed back here - rather than left unauthenticated.
+     *
+     * @param string $requestid The job's requestid.
+     * @return string
+     */
+    public static function callback_key(string $requestid): string {
+        global $CFG;
+        return hash_hmac('sha256', 'local_aiquiz_callback|' . $requestid, $CFG->siteidentifier);
+    }
+
+    /**
+     * Collapse the form's question types onto the ones the service accepts.
+     *
+     * The service knows three types (multichoice, truefalse, shortanswer) and
+     * has no notion of single versus multiple correct answers: it decides that
+     * itself and reports it back per question. The form offers single- and
+     * multi-answer multiple choice separately, so both fold into one
+     * multichoice entry here and their counts add up. It also has no field for
+     * the difficulty split, so that part of the form does not travel at all.
+     *
+     * @param array $questions The 'questions' entries from the job params.
+     * @return array question_types entries, one per distinct service type.
+     */
+    protected static function build_question_types(array $questions): array {
+        $bytype = [];
+
+        foreach ($questions as $q) {
+            $type = $q['type'] ?? '';
+            if ($type === '') {
+                continue;
+            }
+
+            if (!isset($bytype[$type])) {
+                $bytype[$type] = ['type' => $type, 'count' => 0];
+            }
+            $bytype[$type]['count'] += (int) ($q['count'] ?? 0);
+
+            // Only some types take this, and the two multiple choice rows can
+            // disagree once merged; the larger value is the safe one, since a
+            // question can always use fewer options than requested.
+            $answers = (int) ($q['answers_per_question'] ?? 0);
+            if ($answers > 0) {
+                $bytype[$type]['answers_per_question'] =
+                    max($answers, $bytype[$type]['answers_per_question'] ?? 0);
+            }
+        }
+
+        return array_values($bytype);
     }
 
     /**

@@ -30,7 +30,7 @@ use local_aiquiz\manager;
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * Builds a job's manifest and POSTs it to the generation service.
+ * Builds a job's request body and POSTs it to the generation service.
  *
  * Runs in cron so the transfer never blocks the teacher's page submit.
  */
@@ -66,9 +66,11 @@ class generate_task extends \core\task\adhoc_task {
             return;
         }
 
+        // Only the send is guarded: once the service has accepted the request a
+        // callback is coming, so a later failure here must not mark the job
+        // failed and make that callback a no-op.
         try {
-            client::send(manager::build_manifest($job));
-            mtrace("local_aiquiz: sent generation request for job {$jobid} ({$job->requestid}).");
+            $remotejobid = client::send(manager::build_request($job));
         } catch (\Throwable $e) {
             // Record the failure as a terminal state rather than rethrowing:
             // re-queueing would keep the dashboard stuck on 'Generating' and,
@@ -78,6 +80,22 @@ class generate_task extends \core\task\adhoc_task {
             $job->timemodified = time();
             $DB->update_record('local_aiquiz_jobs', $job);
             mtrace("local_aiquiz: job {$jobid} failed: " . $e->getMessage());
+            return;
         }
+
+        // Record the service's own id, so a row here can be matched against
+        // their logs. Just this column, not the whole row: the callback can
+        // land while we are still here, and rewriting $job would push the
+        // status we read earlier back over the one the callback just set.
+        if ($remotejobid !== '') {
+            $DB->update_record('local_aiquiz_jobs', (object) [
+                'id' => $job->id,
+                'remotejobid' => $remotejobid,
+                'timemodified' => time(),
+            ]);
+        }
+
+        mtrace("local_aiquiz: sent generation request for job {$jobid} "
+            . "({$job->requestid}), service job id: " . ($remotejobid ?: 'not returned') . ".");
     }
 }

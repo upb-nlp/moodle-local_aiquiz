@@ -89,5 +89,19 @@ function xmldb_local_aiquiz_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026071900, 'local', 'aiquiz');
     }
 
+    if ($oldversion < 2026080600) {
+        // The generation service assigns its own job id, returned when the job
+        // is created. Keeping it lets a Moodle job be traced in the service's
+        // logs; the callback is still matched on our own requestid.
+        $table = new xmldb_table('local_aiquiz_jobs');
+        $field = new xmldb_field('remotejobid', XMLDB_TYPE_CHAR, '64', null,
+            null, null, null, 'requestid');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026080600, 'local', 'aiquiz');
+    }
+
     return true;
 }

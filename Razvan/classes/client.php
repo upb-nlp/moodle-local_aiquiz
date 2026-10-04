@@ -29,29 +29,34 @@ defined('MOODLE_INTERNAL') || die();
 /**
  * Sends generation requests to the configured AI service.
  *
- * Only the manifest travels here; the file bytes are pulled by the service
- * from the tokenpluginfile.php URLs the manifest carries.
+ * Only the request description travels here; the file bytes are pulled by the
+ * service from the tokenpluginfile.php URLs the request carries.
  */
 class client {
 
-    /** @var string Path appended to the base URL to start a generation. */
-    const GENERATE_PATH = '/generate';
+    /** @var string Path appended to the base URL to create a generation job. */
+    const JOBS_PATH = '/question-bank/generation-jobs';
 
     /** @var int Seconds to wait for the TCP connection. */
     const CONNECT_TIMEOUT = 10;
 
-    /** @var int Seconds to wait for the whole request. The manifest is tiny,
+    /** @var int Seconds to wait for the whole request. The body is tiny,
      * so this never has to cover a file transfer. */
     const REQUEST_TIMEOUT = 30;
 
     /**
-     * POST a manifest to the generation service.
+     * Create a generation job on the service.
      *
-     * @param array $manifest The payload from manager::build_manifest().
+     * The service answers 202 immediately and does the work asynchronously,
+     * then POSTs the outcome to the callback URL carried in the request.
+     *
+     * @param array $request The payload from manager::build_request().
+     * @return string The service's own job id, or '' if it did not return one.
+     *                Stored only so a job can be traced in the service's logs.
      * @throws \moodle_exception When the service is unconfigured, unreachable
      *                           or answers with a non 2xx status.
      */
-    public static function send(array $manifest): void {
+    public static function send(array $request): string {
         global $CFG;
         require_once($CFG->libdir . '/filelib.php');
 
@@ -71,8 +76,8 @@ class client {
             $curl->setHeader('Authorization: Bearer ' . $config->authtoken);
         }
 
-        $body = json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $response = $curl->post($base . self::GENERATE_PATH, $body, [
+        $body = json_encode($request, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $response = $curl->post($base . self::JOBS_PATH, $body, [
             'CURLOPT_CONNECTTIMEOUT' => self::CONNECT_TIMEOUT,
             'CURLOPT_TIMEOUT' => self::REQUEST_TIMEOUT,
         ]);
@@ -85,9 +90,15 @@ class client {
 
         $code = (int) ($curl->get_info()['http_code'] ?? 0);
         if ($code < 200 || $code >= 300) {
-            // Surface a short slice of the body to help diagnose the failure.
-            $detail = (object) ['code' => $code, 'body' => shorten_text((string) $response, 200)];
+            // Surface the body: the service validates with Pydantic and a 422
+            // names every field it rejected, which is the whole diagnosis.
+            $detail = (object) ['code' => $code, 'body' => shorten_text((string) $response, 500)];
             throw new \moodle_exception('errorservicestatus', 'local_aiquiz', '', $detail);
         }
+
+        // A missing job id is not fatal: the work is already accepted and the
+        // callback carries our own request_id, which is what completes the job.
+        $decoded = json_decode((string) $response, true);
+        return is_array($decoded) ? (string) ($decoded['job_id'] ?? '') : '';
     }
 }
