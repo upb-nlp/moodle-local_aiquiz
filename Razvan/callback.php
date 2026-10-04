@@ -17,8 +17,19 @@
 /**
  * Callback the generation service posts to when a job finishes.
  *
- * Machine endpoint: no Moodle session, authenticated by the shared token.
- * Expects a JSON body: {requestid, status: done|failed, error?, questions?}.
+ * Machine endpoint: no Moodle session. Expects the same envelope the service
+ * returns from GET /question-bank/generation-jobs/<job_id>:
+ *
+ *     {job_id, request_id, status, error, result: {questions, ...}}
+ *
+ * The flatter body the HRIA import API was built for, {requestid, questions},
+ * is accepted as well. On completion the questions are imported into the
+ * job's quiz (see \local_aiquiz\importer), which stays hidden until the
+ * teacher reviews and publishes it.
+ *
+ * Authenticated by the per-job key in the URL (see manager::callback_url).
+ * A Bearer token equal to the plugin's configured token is also accepted, in
+ * case the service echoes it back.
  *
  * @package    local_aiquiz
  * @copyright  2026 NLP Reseach Lab
@@ -29,6 +40,7 @@ define('NO_MOODLE_COOKIES', true);
 
 require_once(__DIR__ . '/../../config.php');
 
+use local_aiquiz\importer;
 use local_aiquiz\manager;
 
 header('Content-Type: application/json');
@@ -49,23 +61,38 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     local_aiquiz_respond(405, ['error' => 'method not allowed']);
 }
 
-// Authenticate the service with the shared token. An unset token means the
-// site is not configured to receive callbacks, so reject everything.
-$expected = trim((string) get_config('local_aiquiz', 'authtoken'));
-$authheader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
-$provided = (stripos($authheader, 'Bearer ') === 0) ? trim(substr($authheader, 7)) : '';
-if ($expected === '' || !hash_equals($expected, $provided)) {
-    local_aiquiz_respond(401, ['error' => 'unauthorized']);
-}
-
 $payload = json_decode(file_get_contents('php://input'), true);
-if (!is_array($payload) || empty($payload['requestid'])) {
+
+// The service names it request_id; the dev mock and older builds send
+// requestid. Accept both so a local mock run stays useful.
+$requestid = '';
+if (is_array($payload)) {
+    $requestid = (string) ($payload['request_id'] ?? $payload['requestid'] ?? '');
+}
+if ($requestid === '') {
     local_aiquiz_respond(400, ['error' => 'invalid payload']);
 }
 
-$job = $DB->get_record('local_aiquiz_jobs', ['requestid' => $payload['requestid']]);
+// Authenticate. The per-job key in the URL is the primary proof, because the
+// configured token authenticates us to the service, not the service to us.
+// A matching Bearer token is accepted as well, should the service echo it.
+$key = optional_param('key', '', PARAM_ALPHANUM);
+$authorised = $key !== '' && hash_equals(manager::callback_key($requestid), $key);
+
+if (!$authorised) {
+    $expected = trim((string) get_config('local_aiquiz', 'authtoken'));
+    $authheader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+    $provided = (stripos($authheader, 'Bearer ') === 0) ? trim(substr($authheader, 7)) : '';
+    $authorised = $expected !== '' && $provided !== '' && hash_equals($expected, $provided);
+}
+
+if (!$authorised) {
+    local_aiquiz_respond(401, ['error' => 'unauthorized']);
+}
+
+$job = $DB->get_record('local_aiquiz_jobs', ['requestid' => $requestid]);
 if (!$job) {
-    local_aiquiz_respond(404, ['error' => 'unknown requestid']);
+    local_aiquiz_respond(404, ['error' => 'unknown request_id']);
 }
 
 // The unique requestid index makes a job completable once. A repeated
@@ -74,21 +101,74 @@ if ($job->status !== manager::STATUS_PENDING) {
     local_aiquiz_respond(200, ['ok' => true, 'note' => 'already processed']);
 }
 
-$status = $payload['status'] ?? '';
-if ($status === 'failed') {
-    $job->status = manager::STATUS_FAILED;
-    $job->errormessage = (string) ($payload['error'] ?? 'The generation service reported an error.');
-} else if ($status === 'done') {
-    // TODO: import $payload['questions'] into the quiz $job->quizid. Until the
-    // importer exists the job is marked done but the quiz stays an empty draft
-    // the teacher can fill in by hand.
-    $job->status = manager::STATUS_DONE;
-    $job->errormessage = null;
-} else {
-    local_aiquiz_respond(400, ['error' => 'status must be done or failed']);
+// The service's own vocabulary is 'queued', 'processing' and 'completed'.
+// Treat anything it might call success or failure as such, and acknowledge
+// progress updates without touching the job. The HRIA shape has no status at
+// all: a question list on its own means the job completed.
+$status = strtolower((string) ($payload['status'] ?? ''));
+$questions = importer::extract_questions($payload);
+if ($status === '' && $questions !== null) {
+    $status = 'completed';
 }
 
-$job->timemodified = time();
-$DB->update_record('local_aiquiz_jobs', $job);
+if (in_array($status, ['queued', 'processing', 'running', 'pending'], true)) {
+    local_aiquiz_respond(200, ['ok' => true, 'note' => 'progress noted']);
+}
 
-local_aiquiz_respond(200, ['ok' => true]);
+$failed = in_array($status, ['failed', 'error', 'cancelled', 'canceled'], true);
+if (!$failed && !in_array($status, ['completed', 'done', 'succeeded', 'success'], true)) {
+    local_aiquiz_respond(400, ['error' => 'unrecognised status: ' . $status]);
+}
+
+// One delivery per job at a time. The status check above only sees a job
+// that is finished, not one being imported, so a retry landing mid-import
+// would otherwise fill the quiz a second time.
+$lock = \core\lock\lock_config::get_lock_factory('local_aiquiz_callback')->get_lock('job' . $job->id, 30);
+if (!$lock) {
+    local_aiquiz_respond(409, ['error' => 'another delivery for this job is still being processed']);
+}
+
+try {
+    // Read again under the lock: the delivery that held it may have finished the job.
+    $job = $DB->get_record('local_aiquiz_jobs', ['id' => $job->id], '*', MUST_EXIST);
+
+    if ($job->status !== manager::STATUS_PENDING) {
+        $code = 200;
+        $response = ['ok' => true, 'note' => 'already processed'];
+    } else {
+        if ($failed) {
+            $job->status = manager::STATUS_FAILED;
+            $job->errormessage = (string) ($payload['error']
+                ?? 'The generation service reported an error.');
+            $code = 200;
+            $response = ['ok' => true];
+        } else {
+            try {
+                // Import as the teacher who asked for the quiz, so the questions
+                // are theirs in the question bank. Core's importer renders its
+                // error notices, which needs a page context.
+                \core\session\manager::set_user(\core_user::get_user($job->userid) ?: get_admin());
+                $PAGE->set_context(context_system::instance());
+
+                $result = importer::import($job, $questions ?? []);
+                $job->status = manager::STATUS_DONE;
+                $job->errormessage = null;
+                $code = 200;
+                $response = ['ok' => true] + $result;
+            } catch (\Throwable $e) {
+                // Finished either way: a retry would deliver the same questions,
+                // so the teacher is told rather than the job left generating.
+                $job->status = manager::STATUS_FAILED;
+                $job->errormessage = $e->getMessage();
+                $code = 422;
+                $response = ['ok' => false, 'error' => $e->getMessage()];
+            }
+        }
+        $job->timemodified = time();
+        $DB->update_record('local_aiquiz_jobs', $job);
+    }
+} finally {
+    $lock->release();
+}
+
+local_aiquiz_respond($code, $response);
