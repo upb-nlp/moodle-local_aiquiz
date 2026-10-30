@@ -18,7 +18,7 @@
  * Adhoc task that sends a generation request to the AI service.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -27,15 +27,12 @@ namespace local_aiquiz\task;
 use local_aiquiz\client;
 use local_aiquiz\manager;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Builds a job's request body and POSTs it to the generation service.
  *
  * Runs in cron so the transfer never blocks the teacher's page submit.
  */
 class generate_task extends \core\task\adhoc_task {
-
     /**
      * A human-readable name shown on the task admin screens.
      *

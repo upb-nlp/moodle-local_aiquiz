@@ -18,7 +18,7 @@
  * Tests for the course material listing and its course scoping.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -34,7 +34,6 @@ namespace local_aiquiz;
  * @covers \local_aiquiz\file_lister
  */
 final class file_lister_test extends \advanced_testcase {
-
     /**
      * Attach a file to a module's content area, the way a resource stores one.
      *
@@ -44,8 +43,12 @@ final class file_lister_test extends \advanced_testcase {
      * @param string $filearea Owning file area, e.g. content.
      * @return \stored_file
      */
-    protected function add_file(\stdClass $cm, string $filename,
-            string $component = 'mod_resource', string $filearea = 'content'): \stored_file {
+    protected function add_file(
+        \stdClass $cm,
+        string $filename,
+        string $component = 'mod_resource',
+        string $filearea = 'content'
+    ): \stored_file {
         return get_file_storage()->create_file_from_string([
             'contextid' => \context_module::instance($cm->id)->id,
             'component' => $component,
@@ -63,11 +66,18 @@ final class file_lister_test extends \advanced_testcase {
      * @return \stdClass
      */
     protected function add_resource(\stdClass $course): \stdClass {
+        // The resource generator stores its file in the current user's drafts.
+        $this->setAdminUser();
         $instance = $this->getDataGenerator()
             ->get_plugin_generator('mod_resource')
             ->create_instance(['course' => $course->id]);
-        return get_coursemodule_from_instance('resource', $instance->id, $course->id,
-            false, MUST_EXIST);
+        return get_coursemodule_from_instance(
+            'resource',
+            $instance->id,
+            $course->id,
+            false,
+            MUST_EXIST
+        );
     }
 
     /**
@@ -90,13 +100,19 @@ final class file_lister_test extends \advanced_testcase {
      */
     public function test_folder_files_are_listed(): void {
         $this->resetAfterTest();
+        $this->setAdminUser();
 
         $course = $this->getDataGenerator()->create_course();
         $instance = $this->getDataGenerator()
             ->get_plugin_generator('mod_folder')
             ->create_instance(['course' => $course->id]);
-        $cm = get_coursemodule_from_instance('folder', $instance->id, $course->id,
-            false, MUST_EXIST);
+        $cm = get_coursemodule_from_instance(
+            'folder',
+            $instance->id,
+            $course->id,
+            false,
+            MUST_EXIST
+        );
         $file = $this->add_file($cm, 'slides.pptx', 'mod_folder');
 
         $this->assertArrayHasKey($file->get_id(), file_lister::list_course_files($course->id));
@@ -112,13 +128,24 @@ final class file_lister_test extends \advanced_testcase {
         $instance = $this->getDataGenerator()
             ->get_plugin_generator('mod_assign')
             ->create_instance(['course' => $course->id]);
-        $cm = get_coursemodule_from_instance('assign', $instance->id, $course->id,
-            false, MUST_EXIST);
-        $submission = $this->add_file($cm, 'homework.docx',
-            'assignsubmission_file', 'submission_files');
+        $cm = get_coursemodule_from_instance(
+            'assign',
+            $instance->id,
+            $course->id,
+            false,
+            MUST_EXIST
+        );
+        $submission = $this->add_file(
+            $cm,
+            'homework.docx',
+            'assignsubmission_file',
+            'submission_files'
+        );
 
-        $this->assertArrayNotHasKey($submission->get_id(),
-            file_lister::list_course_files($course->id));
+        $this->assertArrayNotHasKey(
+            $submission->get_id(),
+            file_lister::list_course_files($course->id)
+        );
     }
 
     /**
@@ -130,7 +157,12 @@ final class file_lister_test extends \advanced_testcase {
         $course = $this->getDataGenerator()->create_course();
         $cm = $this->add_resource($course);
         get_file_storage()->create_directory(
-            \context_module::instance($cm->id)->id, 'mod_resource', 'content', 0, '/week1/');
+            \context_module::instance($cm->id)->id,
+            'mod_resource',
+            'content',
+            0,
+            '/week1/'
+        );
         $this->add_file($cm, 'chapter1.pdf');
 
         foreach (file_lister::list_course_files($course->id) as $label) {
@@ -166,10 +198,13 @@ final class file_lister_test extends \advanced_testcase {
         $this->assertSame([], file_lister::get_files_by_ids([$fileb->get_id()], $coursea->id));
 
         $mixed = file_lister::get_files_by_ids(
-            [$filea->get_id(), $fileb->get_id()], $coursea->id);
+            [$filea->get_id(), $fileb->get_id()],
+            $coursea->id
+        );
 
         $this->assertCount(1, $mixed);
-        $this->assertSame($filea->get_id(), $mixed[0]->get_id());
+        // Ids read back from the database are strings on some drivers.
+        $this->assertSame((int) $filea->get_id(), (int) $mixed[0]->get_id());
     }
 
     /**

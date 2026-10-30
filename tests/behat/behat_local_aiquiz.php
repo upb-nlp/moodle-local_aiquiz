@@ -19,7 +19,7 @@
  *
  * @package    local_aiquiz
  * @category   test
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -31,7 +31,6 @@ require_once(__DIR__ . '/../../../../lib/behat/behat_base.php');
  * Lets a feature say "the C1 local_aiquiz > Dashboard page" instead of a URL.
  */
 class behat_local_aiquiz extends behat_base {
-
     /**
      * Map a page name onto its URL.
      *
@@ -46,12 +45,16 @@ class behat_local_aiquiz extends behat_base {
     protected function resolve_page_instance_url(string $type, string $identifier): moodle_url {
         switch (strtolower($type)) {
             case 'dashboard':
-                return new moodle_url('/local/aiquiz/index.php',
-                    ['courseid' => $this->get_course_id($identifier)]);
+                return new moodle_url(
+                    '/local/aiquiz/index.php',
+                    ['courseid' => $this->get_course_id($identifier)]
+                );
 
             case 'generate':
-                return new moodle_url('/local/aiquiz/create.php',
-                    ['courseid' => $this->get_course_id($identifier)]);
+                return new moodle_url(
+                    '/local/aiquiz/create.php',
+                    ['courseid' => $this->get_course_id($identifier)]
+                );
 
             default:
                 throw new Exception("Unrecognised local_aiquiz page type '{$type}'.");

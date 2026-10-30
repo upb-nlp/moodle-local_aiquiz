@@ -18,7 +18,7 @@
  * Tests for the job lifecycle: create, publish, unpublish, delete.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -33,7 +33,6 @@ namespace local_aiquiz;
  * @covers \local_aiquiz\manager
  */
 final class manager_workflow_test extends \advanced_testcase {
-
     /**
      * Form data for a job asking for five single answer multiple choice.
      *
@@ -64,8 +63,13 @@ final class manager_workflow_test extends \advanced_testcase {
      * @return \stdClass
      */
     protected static function quiz_cm(\stdClass $job): \stdClass {
-        return get_coursemodule_from_instance('quiz', $job->quizid, $job->courseid,
-            false, MUST_EXIST);
+        return get_coursemodule_from_instance(
+            'quiz',
+            $job->quizid,
+            $job->courseid,
+            false,
+            MUST_EXIST
+        );
     }
 
     /**
@@ -87,11 +91,16 @@ final class manager_workflow_test extends \advanced_testcase {
         $this->assertNotEmpty($stored->quizid);
         $this->assertMatchesRegularExpression(
             '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/',
-            $stored->requestid, 'requestid should be a UUID.');
+            $stored->requestid,
+            'requestid should be a UUID.'
+        );
 
         $this->assertTrue($DB->record_exists('quiz', ['id' => $stored->quizid]));
-        $this->assertEquals(0, self::quiz_cm($stored)->visible,
-            'The generated quiz must start hidden from students.');
+        $this->assertEquals(
+            0,
+            self::quiz_cm($stored)->visible,
+            'The generated quiz must start hidden from students.'
+        );
     }
 
     /**
@@ -107,8 +116,10 @@ final class manager_workflow_test extends \advanced_testcase {
 
         $job = manager::create_job(self::form_data(), $course);
 
-        $this->assertEquals($teacher->id,
-            $DB->get_field('local_aiquiz_jobs', 'userid', ['id' => $job->id]));
+        $this->assertEquals(
+            $teacher->id,
+            $DB->get_field('local_aiquiz_jobs', 'userid', ['id' => $job->id])
+        );
     }
 
     /**
@@ -120,7 +131,9 @@ final class manager_workflow_test extends \advanced_testcase {
         $this->setAdminUser();
 
         $course = $this->getDataGenerator()->create_course(
-            ['numsections' => 3], ['createsections' => true]);
+            ['numsections' => 3],
+            ['createsections' => true]
+        );
 
         $job = manager::create_job(self::form_data(['section' => 2]), $course);
 
@@ -285,7 +298,7 @@ final class manager_workflow_test extends \advanced_testcase {
         $listed = reset($jobs);
         $this->assertNull($listed->quizname);
         $this->assertNull($listed->cmid);
-        // index.php falls back to the name stored on the job.
+        // The index.php page falls back to the name stored on the job.
         $this->assertSame('Chapter 1 quiz', json_decode($listed->params, true)['quizname']);
     }
 
@@ -310,7 +323,8 @@ final class manager_workflow_test extends \advanced_testcase {
         $jobs = manager::get_course_jobs($coursea->id);
 
         $this->assertCount(2, $jobs);
-        $this->assertSame([$newer->id, $older->id], array_column($jobs, 'id'));
+        // Ids read back from the database are strings on some drivers.
+        $this->assertSame([(int) $newer->id, (int) $older->id], array_map('intval', array_column($jobs, 'id')));
     }
 
     /**
@@ -329,8 +343,10 @@ final class manager_workflow_test extends \advanced_testcase {
         $courseb = $this->getDataGenerator()->create_course();
         $job = manager::create_job(self::form_data(), $courseb);
 
-        $this->assertFalse($DB->record_exists('local_aiquiz_jobs',
-            ['id' => $job->id, 'courseid' => $coursea->id]));
+        $this->assertFalse($DB->record_exists(
+            'local_aiquiz_jobs',
+            ['id' => $job->id, 'courseid' => $coursea->id]
+        ));
     }
 
     /**
@@ -347,8 +363,13 @@ final class manager_workflow_test extends \advanced_testcase {
         $instance = $this->getDataGenerator()
             ->get_plugin_generator('mod_resource')
             ->create_instance(['course' => $course->id]);
-        $cm = get_coursemodule_from_instance('resource', $instance->id, $course->id,
-            false, MUST_EXIST);
+        $cm = get_coursemodule_from_instance(
+            'resource',
+            $instance->id,
+            $course->id,
+            false,
+            MUST_EXIST
+        );
         $file = get_file_storage()->create_file_from_string([
             'contextid' => \context_module::instance($cm->id)->id,
             'component' => 'mod_resource',

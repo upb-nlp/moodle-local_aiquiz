@@ -18,7 +18,7 @@
  * The quiz generation form.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -33,7 +33,6 @@ require_once($CFG->libdir . '/formslib.php');
  * Collects everything needed to request a generated quiz.
  */
 class generate_form extends \moodleform {
-
     /** @var int Upper bound on questions per request. */
     const MAX_QUESTIONS = 100;
 
@@ -70,8 +69,12 @@ class generate_form extends \moodleform {
         $mform->addElement('header', 'generalheader', get_string('generalheader', 'local_aiquiz'));
         $mform->setExpanded('generalheader');
 
-        $mform->addElement('text', 'quizname', get_string('quizname', 'local_aiquiz'),
-            ['size' => 50]);
+        $mform->addElement(
+            'text',
+            'quizname',
+            get_string('quizname', 'local_aiquiz'),
+            ['size' => 50]
+        );
         $mform->setType('quizname', PARAM_TEXT);
         $mform->addRule('quizname', get_string('required'), 'required', null, 'client');
         $mform->addRule('quizname', get_string('maximumchars', '', 255), 'maxlength', 255, 'client');
@@ -84,14 +87,23 @@ class generate_form extends \moodleform {
         $mform->setExpanded('materialsheader');
 
         if (empty($files)) {
-            $mform->addElement('static', 'nofiles', '',
-                get_string('errornofilesincourse', 'local_aiquiz'));
+            $mform->addElement(
+                'static',
+                'nofiles',
+                '',
+                get_string('errornofilesincourse', 'local_aiquiz')
+            );
         } else {
-            $mform->addElement('autocomplete', 'fileids',
-                get_string('sourcefiles', 'local_aiquiz'), $files, [
+            $mform->addElement(
+                'autocomplete',
+                'fileids',
+                get_string('sourcefiles', 'local_aiquiz'),
+                $files,
+                [
                     'multiple' => true,
                     'noselectionstring' => get_string('nomaterialsselected', 'local_aiquiz'),
-                ]);
+                ]
+            );
             $mform->setType('fileids', PARAM_INT);
             $mform->addHelpButton('fileids', 'sourcefiles', 'local_aiquiz');
         }
@@ -101,19 +113,30 @@ class generate_form extends \moodleform {
         $mform->setExpanded('questionsheader');
 
         foreach (self::get_types() as $key => $meta) {
-            $mform->addElement('advcheckbox', "enable{$key}",
-                get_string("type{$key}", 'local_aiquiz'));
+            $mform->addElement(
+                'advcheckbox',
+                "enable{$key}",
+                get_string("type{$key}", 'local_aiquiz')
+            );
             $mform->setType("enable{$key}", PARAM_BOOL);
 
-            $mform->addElement('text', "count{$key}", get_string('count', 'local_aiquiz'),
-                ['size' => 4]);
+            $mform->addElement(
+                'text',
+                "count{$key}",
+                get_string('count', 'local_aiquiz'),
+                ['size' => 4]
+            );
             $mform->setType("count{$key}", PARAM_INT);
             $mform->setDefault("count{$key}", 5);
             $mform->hideIf("count{$key}", "enable{$key}", 'notchecked');
 
             if ($meta['answers']) {
-                $mform->addElement('text', "answers{$key}",
-                    get_string('answersperquestion', 'local_aiquiz'), ['size' => 4]);
+                $mform->addElement(
+                    'text',
+                    "answers{$key}",
+                    get_string('answersperquestion', 'local_aiquiz'),
+                    ['size' => 4]
+                );
                 $mform->setType("answers{$key}", PARAM_INT);
                 $mform->setDefault("answers{$key}", 4);
                 $mform->addHelpButton("answers{$key}", 'answersperquestion', 'local_aiquiz');
@@ -146,8 +169,12 @@ class generate_form extends \moodleform {
         $mform->setType('language', PARAM_ALPHA);
         $mform->setDefault('language', 'ro');
 
-        $mform->addElement('textarea', 'learningobjectives',
-            get_string('learningobjectives', 'local_aiquiz'), ['rows' => 3, 'cols' => 50]);
+        $mform->addElement(
+            'textarea',
+            'learningobjectives',
+            get_string('learningobjectives', 'local_aiquiz'),
+            ['rows' => 3, 'cols' => 50]
+        );
         $mform->setType('learningobjectives', PARAM_TEXT);
         $mform->addHelpButton('learningobjectives', 'learningobjectives', 'local_aiquiz');
 
@@ -198,8 +225,11 @@ class generate_form extends \moodleform {
         if ($enabledtypes === 0) {
             $errors['enablemcsingle'] = get_string('errornotypes', 'local_aiquiz');
         } else if ($total > self::MAX_QUESTIONS) {
-            $errors['enablemcsingle'] = get_string('errortoomanyquestions', 'local_aiquiz',
-                self::MAX_QUESTIONS);
+            $errors['enablemcsingle'] = get_string(
+                'errortoomanyquestions',
+                'local_aiquiz',
+                self::MAX_QUESTIONS
+            );
         }
 
         return $errors;

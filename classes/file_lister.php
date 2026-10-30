@@ -18,19 +18,16 @@
  * Lists the course materials that can be used as generation input.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 namespace local_aiquiz;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Finds teacher-uploaded course materials suitable for question generation.
  */
 class file_lister {
-
     /**
      * The course context plus every context below it.
      *

@@ -18,7 +18,7 @@
  * Strings for the AI quiz generator plugin.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -67,6 +67,22 @@ $string['nomaterialsselected'] = 'No materials selected';
 $string['noquizzesyet'] = 'No quizzes have been generated in this course yet. Use the button above to create the first one.';
 $string['optionsheader'] = 'Generation options';
 $string['pluginname'] = 'AI Quiz generator';
+$string['privacy:metadata:core_userkey'] = 'The download links sent to the generation service use the requesting teacher\'s file access key, so the service can fetch the selected materials as that teacher.';
+$string['privacy:metadata:generationservice'] = 'The plugin sends each generation request to the external AI service configured by the site administrator.';
+$string['privacy:metadata:generationservice:language'] = 'The language the questions should be written in.';
+$string['privacy:metadata:generationservice:learning_objectives'] = 'The learning objectives the teacher entered for the quiz.';
+$string['privacy:metadata:generationservice:request_id'] = 'The identifier of the generation request.';
+$string['privacy:metadata:generationservice:source_files'] = 'The name, type and download link of each selected course file. The link contains the requesting teacher\'s file access key.';
+$string['privacy:metadata:local_aiquiz_jobs'] = 'A record of each quiz generation request.';
+$string['privacy:metadata:local_aiquiz_jobs:courseid'] = 'The course the quiz was generated in.';
+$string['privacy:metadata:local_aiquiz_jobs:errormessage'] = 'Why the generation failed, if it did.';
+$string['privacy:metadata:local_aiquiz_jobs:params'] = 'The settings the teacher submitted: quiz name, language, learning objectives, selected files and question types.';
+$string['privacy:metadata:local_aiquiz_jobs:published'] = 'Whether the teacher has published the generated quiz.';
+$string['privacy:metadata:local_aiquiz_jobs:quizid'] = 'The quiz the questions were generated for.';
+$string['privacy:metadata:local_aiquiz_jobs:status'] = 'Whether the generation is pending, done or failed.';
+$string['privacy:metadata:local_aiquiz_jobs:timecreated'] = 'When the generation was requested.';
+$string['privacy:metadata:local_aiquiz_jobs:timemodified'] = 'When the record was last changed.';
+$string['privacy:metadata:local_aiquiz_jobs:userid'] = 'The teacher who requested the generation.';
 $string['publish'] = 'Publish';
 $string['questions'] = 'Questions';
 $string['questionsheader'] = 'Questions';

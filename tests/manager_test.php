@@ -18,7 +18,7 @@
  * Unit tests for the request building logic, which needs no database.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -34,7 +34,6 @@ namespace local_aiquiz;
  * @covers \local_aiquiz\manager
  */
 final class manager_test extends \advanced_testcase {
-
     /**
      * Invoke manager::build_question_types(), which is protected.
      *
@@ -124,8 +123,10 @@ final class manager_test extends \advanced_testcase {
         ]);
 
         $this->assertCount(3, $result);
-        $this->assertSame(['multichoice', 'truefalse', 'shortanswer'],
-            array_column($result, 'type'));
+        $this->assertSame(
+            ['multichoice', 'truefalse', 'shortanswer'],
+            array_column($result, 'type')
+        );
     }
 
     /**
@@ -179,10 +180,14 @@ final class manager_test extends \advanced_testcase {
 
         $request = manager::build_request($job);
 
-        $this->assertSame(['request_id', 'callback_url', 'generation', 'source_files'],
-            array_keys($request));
-        $this->assertSame(['total_questions', 'language', 'learning_objectives', 'question_types'],
-            array_keys($request['generation']));
+        $this->assertSame(
+            ['request_id', 'callback_url', 'generation', 'source_files'],
+            array_keys($request)
+        );
+        $this->assertSame(
+            ['total_questions', 'language', 'learning_objectives', 'question_types'],
+            array_keys($request['generation'])
+        );
         $this->assertSame($job->requestid, $request['request_id']);
         $this->assertSame(manager::callback_url($job->requestid), $request['callback_url']);
         $this->assertSame('ro', $request['generation']['language']);
@@ -275,7 +280,9 @@ final class manager_test extends \advanced_testcase {
     public function test_callback_url_points_at_the_plugin_with_the_job_key(): void {
         $url = new \moodle_url(manager::callback_url('any-request-id'));
 
-        $this->assertSame('/local/aiquiz/callback.php', $url->get_path(false));
+        // Compared against a moodle_url too, so a site in a subdirectory passes.
+        $expected = new \moodle_url('/local/aiquiz/callback.php');
+        $this->assertSame($expected->get_path(false), $url->get_path(false));
         $this->assertSame(manager::callback_key('any-request-id'), $url->get_param('key'));
     }
 
@@ -308,7 +315,9 @@ final class manager_test extends \advanced_testcase {
         $this->assertSame(['multichoice', 'truefalse'], array_column($params['questions'], 'type'));
         $this->assertSame(4, $params['questions'][0]['answers_per_question']);
         $this->assertNull($params['questions'][1]['answers_per_question']);
-        $this->assertSame(['easy' => 20, 'medium' => 60, 'hard' => 20],
-            $params['questions'][1]['difficulty']);
+        $this->assertSame(
+            ['easy' => 20, 'medium' => 60, 'hard' => 20],
+            $params['questions'][1]['difficulty']
+        );
     }
 }

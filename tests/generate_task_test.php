@@ -18,7 +18,7 @@
  * Tests for the adhoc task that sends the generation request.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -36,7 +36,6 @@ use local_aiquiz\task\generate_task;
  * @covers \local_aiquiz\task\generate_task
  */
 final class generate_task_test extends \advanced_testcase {
-
     /**
      * Insert a job row directly, without going through the form.
      *
@@ -124,8 +123,10 @@ final class generate_task_test extends \advanced_testcase {
         $output = $this->run_task($job->id);
 
         $this->assertStringContainsString('not pending', $output);
-        $this->assertSame(manager::STATUS_DONE,
-            $DB->get_field('local_aiquiz_jobs', 'status', ['id' => $job->id]));
+        $this->assertSame(
+            manager::STATUS_DONE,
+            $DB->get_field('local_aiquiz_jobs', 'status', ['id' => $job->id])
+        );
     }
 
     /**
@@ -143,8 +144,10 @@ final class generate_task_test extends \advanced_testcase {
 
         $this->run_task($job->id);
 
-        $this->assertSame('Original failure.',
-            $DB->get_field('local_aiquiz_jobs', 'errormessage', ['id' => $job->id]));
+        $this->assertSame(
+            'Original failure.',
+            $DB->get_field('local_aiquiz_jobs', 'errormessage', ['id' => $job->id])
+        );
     }
 
     /**
@@ -184,7 +187,8 @@ final class generate_task_test extends \advanced_testcase {
 
         $this->assertStringContainsString(
             get_string('errornoendpoint', 'local_aiquiz'),
-            $DB->get_field('local_aiquiz_jobs', 'errormessage', ['id' => $job->id]));
+            $DB->get_field('local_aiquiz_jobs', 'errormessage', ['id' => $job->id])
+        );
     }
 
     /**
@@ -204,8 +208,10 @@ final class generate_task_test extends \advanced_testcase {
 
         $this->run_task($job->id);
 
-        $this->assertSame(manager::STATUS_FAILED,
-            $DB->get_field('local_aiquiz_jobs', 'status', ['id' => $job->id]));
+        $this->assertSame(
+            manager::STATUS_FAILED,
+            $DB->get_field('local_aiquiz_jobs', 'status', ['id' => $job->id])
+        );
     }
 
     /**

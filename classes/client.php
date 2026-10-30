@@ -18,13 +18,11 @@
  * HTTP client for the generation service.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 namespace local_aiquiz;
-
-defined('MOODLE_INTERNAL') || die();
 
 /**
  * Sends generation requests to the configured AI service.
@@ -33,7 +31,6 @@ defined('MOODLE_INTERNAL') || die();
  * service from the tokenpluginfile.php URLs the request carries.
  */
 class client {
-
     /** @var string Path appended to the base URL to create a generation job. */
     const JOBS_PATH = '/question-bank/generation-jobs';
 
@@ -66,7 +63,7 @@ class client {
             throw new \moodle_exception('errornoendpoint', 'local_aiquiz');
         }
 
-        // ignoresecurity lets us reach localhost / private IPs during
+        // The ignoresecurity option lets us reach localhost / private IPs during
         // development; in production the admin leaves allowlocalapi off and
         // Moodle's SSRF blocklist stays in force.
         $curl = new \curl(['ignoresecurity' => !empty($config->allowlocalapi)]);

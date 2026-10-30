@@ -18,7 +18,7 @@
  * Quiz generation form page.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -59,8 +59,12 @@ if ($form->is_cancelled()) {
     // Create the hidden draft quiz and its job record, then land the
     // teacher on the dashboard where the job's progress is shown.
     \local_aiquiz\manager::create_job($data, $course);
-    redirect($dashboardurl, get_string('generationstarted', 'local_aiquiz'), null,
-        \core\output\notification::NOTIFY_SUCCESS);
+    redirect(
+        $dashboardurl,
+        get_string('generationstarted', 'local_aiquiz'),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
 }
 
 echo $OUTPUT->header();

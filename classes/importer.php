@@ -18,13 +18,11 @@
  * Imports the questions the generation service delivers into a job's quiz.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 namespace local_aiquiz;
-
-defined('MOODLE_INTERNAL') || die();
 
 /**
  * Turns delivered questions into quiz questions.
@@ -40,7 +38,6 @@ defined('MOODLE_INTERNAL') || die();
  * refuse, is left out with a reason rather than failing the whole job.
  */
 class importer {
-
     /** @var string[] The question types the service generates. */
     const TYPES = ['multichoice', 'truefalse', 'shortanswer'];
 
@@ -193,7 +190,13 @@ class importer {
      */
     protected static function save_questions(array $questions, string $requestid, \stdClass $cm): array {
         $context = \context_module::instance($cm->id);
+        // Moodle 5.0 creates the category when asked to. On 4.5 the extra
+        // argument is ignored and a quiz nobody has opened yet has no category,
+        // so create the defaults the 4.5 way.
         $category = question_get_default_category($context->id, true);
+        if (!$category) {
+            $category = question_make_default_categories([$context]);
+        }
 
         $file = make_request_directory() . '/questions.xml';
         file_put_contents($file, self::build_xml($questions, $requestid));

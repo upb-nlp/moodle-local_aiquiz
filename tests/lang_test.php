@@ -18,7 +18,7 @@
  * Tests that the strings built at runtime actually exist.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -35,7 +35,6 @@ use local_aiquiz\form\generate_form;
  * one of them is missing and the page renders [[stateready]].
  */
 final class lang_test extends \advanced_testcase {
-
     /**
      * Assert a string is defined and not a missing-string placeholder.
      *
@@ -44,7 +43,8 @@ final class lang_test extends \advanced_testcase {
     protected function assert_string_exists(string $identifier): void {
         $this->assertTrue(
             get_string_manager()->string_exists($identifier, 'local_aiquiz'),
-            "Missing language string: {$identifier}");
+            "Missing language string: {$identifier}"
+        );
         $this->assertStringNotContainsString('[[', get_string($identifier, 'local_aiquiz'));
     }
 

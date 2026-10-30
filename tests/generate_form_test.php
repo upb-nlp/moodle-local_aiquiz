@@ -18,7 +18,7 @@
  * Unit tests for the generation form's server side validation.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -35,7 +35,6 @@ use local_aiquiz\form\generate_form;
  * @covers \local_aiquiz\form\generate_form
  */
 final class generate_form_test extends \advanced_testcase {
-
     /**
      * A form instance whose constructor never ran.
      *
@@ -144,8 +143,11 @@ final class generate_form_test extends \advanced_testcase {
         ]), []);
 
         $this->assertArrayHasKey('difficultymcsingle', $errors);
-        $this->assertStringContainsString('90', $errors['difficultymcsingle'],
-            'The message should tell the teacher what the total currently is.');
+        $this->assertStringContainsString(
+            '90',
+            $errors['difficultymcsingle'],
+            'The message should tell the teacher what the total currently is.'
+        );
     }
 
     /**
@@ -174,7 +176,8 @@ final class generate_form_test extends \advanced_testcase {
         $this->assertArrayHasKey('enablemcsingle', $errors);
         $this->assertSame(
             get_string('errortoomanyquestions', 'local_aiquiz', generate_form::MAX_QUESTIONS),
-            $errors['enablemcsingle']);
+            $errors['enablemcsingle']
+        );
     }
 
     /**
@@ -210,8 +213,11 @@ final class generate_form_test extends \advanced_testcase {
         $servicetypes = ['multichoice', 'truefalse', 'shortanswer'];
 
         foreach (generate_form::get_types() as $key => $meta) {
-            $this->assertContains($meta['type'], $servicetypes,
-                "Form type {$key} maps to an unknown service type.");
+            $this->assertContains(
+                $meta['type'],
+                $servicetypes,
+                "Form type {$key} maps to an unknown service type."
+            );
             $this->assertArrayHasKey('single', $meta);
             $this->assertArrayHasKey('answers', $meta);
         }

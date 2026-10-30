@@ -18,7 +18,7 @@
  * Tests for who may generate quizzes and who may see the entry point.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -31,7 +31,6 @@ namespace local_aiquiz;
  * whole access control story for the plugin.
  */
 final class access_test extends \advanced_testcase {
-
     /** @var string The capability guarding every page in the plugin. */
     const CAPABILITY = 'local/aiquiz:generate';
 

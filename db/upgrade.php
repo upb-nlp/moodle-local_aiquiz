@@ -18,11 +18,9 @@
  * Upgrade steps for the AI quiz generator plugin.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-
-defined('MOODLE_INTERNAL') || die();
 
 /**
  * Upgrade the plugin database schema.
@@ -66,21 +64,45 @@ function xmldb_local_aiquiz_upgrade($oldversion) {
             // The table exists with the original fields; add the new ones.
 
             // Whether the teacher has approved the quiz and made it visible.
-            $field = new xmldb_field('published', XMLDB_TYPE_INTEGER, '1', null,
-                XMLDB_NOTNULL, null, '0', 'status');
+            $field = new xmldb_field(
+                'published',
+                XMLDB_TYPE_INTEGER,
+                '1',
+                null,
+                XMLDB_NOTNULL,
+                null,
+                '0',
+                'status'
+            );
             if (!$dbman->field_exists($table, $field)) {
                 $dbman->add_field($table, $field);
             }
 
-            $field = new xmldb_field('timepublished', XMLDB_TYPE_INTEGER, '10', null,
-                null, null, null, 'published');
+            $field = new xmldb_field(
+                'timepublished',
+                XMLDB_TYPE_INTEGER,
+                '10',
+                null,
+                null,
+                null,
+                null,
+                'published'
+            );
             if (!$dbman->field_exists($table, $field)) {
                 $dbman->add_field($table, $field);
             }
 
             // The generation settings submitted on the form, as JSON.
-            $field = new xmldb_field('params', XMLDB_TYPE_TEXT, null, null,
-                null, null, null, 'errormessage');
+            $field = new xmldb_field(
+                'params',
+                XMLDB_TYPE_TEXT,
+                null,
+                null,
+                null,
+                null,
+                null,
+                'errormessage'
+            );
             if (!$dbman->field_exists($table, $field)) {
                 $dbman->add_field($table, $field);
             }
@@ -94,8 +116,16 @@ function xmldb_local_aiquiz_upgrade($oldversion) {
         // is created. Keeping it lets a Moodle job be traced in the service's
         // logs; the callback is still matched on our own requestid.
         $table = new xmldb_table('local_aiquiz_jobs');
-        $field = new xmldb_field('remotejobid', XMLDB_TYPE_CHAR, '64', null,
-            null, null, null, 'requestid');
+        $field = new xmldb_field(
+            'remotejobid',
+            XMLDB_TYPE_CHAR,
+            '64',
+            null,
+            null,
+            null,
+            null,
+            'requestid'
+        );
         if (!$dbman->field_exists($table, $field)) {
             $dbman->add_field($table, $field);
         }

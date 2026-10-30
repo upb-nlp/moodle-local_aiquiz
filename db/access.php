@@ -18,7 +18,7 @@
  * Capability definitions for the AI quiz generator plugin.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -26,7 +26,7 @@ defined('MOODLE_INTERNAL') || die();
 
 $capabilities = [
 
-    // Generate a quiz from course materials using the AI service
+    // Generate a quiz from course materials using the AI service.
     'local/aiquiz:generate' => [
         'riskbitmask' => RISK_SPAM,
         'captype' => 'write',

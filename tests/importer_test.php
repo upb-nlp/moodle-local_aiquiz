@@ -18,7 +18,7 @@
  * Unit tests for importing delivered questions into a job's quiz.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -36,7 +36,6 @@ namespace local_aiquiz;
  * @covers \local_aiquiz\importer
  */
 final class importer_test extends \advanced_testcase {
-
     /**
      * A single answer multiple choice question in the service's own shape.
      *
@@ -91,7 +90,9 @@ final class importer_test extends \advanced_testcase {
     protected static function quiz_structure(\stdClass $job): array {
         $cm = get_coursemodule_from_instance('quiz', $job->quizid, $job->courseid, false, MUST_EXIST);
         return \mod_quiz\question\bank\qbank_helper::get_question_structure(
-            $job->quizid, \context_module::instance($cm->id));
+            $job->quizid,
+            \context_module::instance($cm->id)
+        );
     }
 
     /**
@@ -105,8 +106,10 @@ final class importer_test extends \advanced_testcase {
         global $CFG;
         require_once($CFG->libdir . '/questionlib.php');
 
-        $core = array_map(fn($fraction) => round((float) $fraction * 100, 5),
-            array_keys(\question_bank::fraction_options_full()));
+        $core = array_map(
+            fn($fraction) => round((float) $fraction * 100, 5),
+            array_keys(\question_bank::fraction_options_full())
+        );
         $ours = [];
         foreach (importer::FRACTIONS as $fraction) {
             $ours[] = (float) $fraction;
@@ -126,8 +129,10 @@ final class importer_test extends \advanced_testcase {
     public function test_extract_questions_reads_both_shapes(): void {
         $question = self::service_multichoice();
 
-        $this->assertSame([$question],
-            importer::extract_questions(['status' => 'completed', 'result' => ['questions' => [$question]]]));
+        $this->assertSame(
+            [$question],
+            importer::extract_questions(['status' => 'completed', 'result' => ['questions' => [$question]]])
+        );
         $this->assertSame([$question], importer::extract_questions(['requestid' => 'r', 'questions' => [$question]]));
         $this->assertSame([$question], importer::extract_questions(['result' => null, 'questions' => [$question]]));
         $this->assertNull(importer::extract_questions(['status' => 'failed', 'result' => null]));
@@ -144,8 +149,10 @@ final class importer_test extends \advanced_testcase {
         $this->assertSame('multichoice', $question['type']);
         $this->assertSame('What is a dummy PDF file for?', $question['text']);
         $this->assertTrue($question['single']);
-        $this->assertSame(['Encrypting data', 'Testing file handling', 'Compressing datasets', 'Client review'],
-            array_column($question['answers'], 'text'));
+        $this->assertSame(
+            ['Encrypting data', 'Testing file handling', 'Compressing datasets', 'Client review'],
+            array_column($question['answers'], 'text')
+        );
         $this->assertEquals([0, 100, 0, 0], array_column($question['answers'], 'fraction'));
         $this->assertSame('medium', $question['difficulty']);
         $this->assertSame('Dummy files stand in for real ones in tests.', $question['explanation']);
@@ -353,10 +360,14 @@ final class importer_test extends \advanced_testcase {
 
         $this->assertNotFalse($xml);
         $this->assertCount(2, $xml->question);
-        $this->assertSame("Is 3 &lt; 5 &amp;&amp; 5 &gt; 3?<br>\nPick ]]&gt; one.",
-            (string) $xml->question[0]->questiontext->text);
-        $this->assertSame(['hard</text></tag><tag><text>injected', 'generat-automat', 'quiz-req-1'],
-            array_map(fn($tag) => (string) $tag->text, iterator_to_array($xml->question[0]->tags->tag, false)));
+        $this->assertSame(
+            "Is 3 &lt; 5 &amp;&amp; 5 &gt; 3?<br>\nPick ]]&gt; one.",
+            (string) $xml->question[0]->questiontext->text
+        );
+        $this->assertSame(
+            ['hard</text></tag><tag><text>injected', 'generat-automat', 'quiz-req-1'],
+            array_map(fn($tag) => (string) $tag->text, iterator_to_array($xml->question[0]->tags->tag, false))
+        );
         // A short answer is matched against what the student types, so it is
         // kept exactly as delivered.
         $this->assertSame('a]]>b <c>', (string) $xml->question[1]->answer->text);
@@ -393,15 +404,20 @@ final class importer_test extends \advanced_testcase {
         $this->assertSame(2, $result['skipped'][0]['index']);
 
         $structure = self::quiz_structure($job);
-        $this->assertSame(['multichoice', 'truefalse', 'shortanswer', 'multichoice'],
-            array_values(array_column($structure, 'qtype')));
+        $this->assertSame(
+            ['multichoice', 'truefalse', 'shortanswer', 'multichoice'],
+            array_values(array_column($structure, 'qtype'))
+        );
 
         // Saved in the quiz's own question bank, not somewhere shared.
         $context = \context_module::instance(
-            get_coursemodule_from_instance('quiz', $job->quizid, $job->courseid)->id);
+            get_coursemodule_from_instance('quiz', $job->quizid, $job->courseid)->id
+        );
         $category = question_get_default_category($context->id);
-        $this->assertEquals(4, $DB->count_records('question_bank_entries',
-            ['questioncategoryid' => $category->id]));
+        $this->assertEquals(4, $DB->count_records(
+            'question_bank_entries',
+            ['questioncategoryid' => $category->id]
+        ));
 
         // The quiz's total follows the questions, one mark each.
         $this->assertEquals(4, $DB->get_field('quiz', 'sumgrades', ['id' => $job->quizid]));
@@ -410,7 +426,9 @@ final class importer_test extends \advanced_testcase {
         $multi = \question_bank::load_question(end($structure)->questionid);
         $this->assertInstanceOf(\qtype_multichoice_multi_question::class, $multi);
         $this->assertEqualsWithDelta([0.5, -1, 0.5], array_values(array_map(
-            fn($answer) => (float) $answer->fraction, $multi->answers)), 0.0000001);
+            fn($answer) => (float) $answer->fraction,
+            $multi->answers
+        )), 0.0000001);
     }
 
     /**

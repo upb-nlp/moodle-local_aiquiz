@@ -18,15 +18,13 @@
  * The generation job workflow: create, publish, unpublish, delete.
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 namespace local_aiquiz;
 
 use local_aiquiz\form\generate_form;
-
-defined('MOODLE_INTERNAL') || die();
 
 /**
  * Creates generated quizzes as hidden drafts and manages their lifecycle.
@@ -36,7 +34,6 @@ defined('MOODLE_INTERNAL') || die();
  * flips the course module's visibility.
  */
 class manager {
-
     /** @var string Waiting for the generation service. */
     const STATUS_PENDING = 'pending';
     /** @var string Questions were generated successfully. */
@@ -114,7 +111,7 @@ class manager {
 
         $sourcefiles = [];
         foreach ($files as $file) {
-            // includetoken = userid: mint a tokenpluginfile.php URL scoped to
+            // Passing includetoken = userid mints a tokenpluginfile.php URL scoped to
             // the teacher, so the pull is authorised as them.
             $url = \moodle_url::make_pluginfile_url(
                 $file->get_contextid(),
@@ -447,8 +444,10 @@ class manager {
             }
         }
 
-        // Overall feedback: one empty entry, as the quiz form submits.
-        $moduleinfo->feedbacktext = [['text' => '', 'format' => FORMAT_HTML]];
+        // Overall feedback: one empty entry, as the quiz form submits. The
+        // quiz saves its draft area on itemid, so it has to be present; 0 means
+        // there are no draft files to move.
+        $moduleinfo->feedbacktext = [['text' => '', 'format' => FORMAT_HTML, 'itemid' => 0]];
         $moduleinfo->feedbackboundaries = [];
 
         $moduleinfo = add_moduleinfo($moduleinfo, $course);

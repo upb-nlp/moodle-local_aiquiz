@@ -21,7 +21,7 @@
  * draft and publishes it (or unpublishes / deletes it again).
  *
  * @package    local_aiquiz
- * @copyright  2026 NLP Reseach Lab
+ * @copyright  2026 NLP Research Lab
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -50,27 +50,41 @@ $PAGE->set_heading($course->fullname);
 
 // Row actions. Publish and unpublish run straight away; delete asks first.
 if ($action && $jobid) {
-    $job = $DB->get_record('local_aiquiz_jobs',
-        ['id' => $jobid, 'courseid' => $course->id], '*', MUST_EXIST);
+    $job = $DB->get_record(
+        'local_aiquiz_jobs',
+        ['id' => $jobid, 'courseid' => $course->id],
+        '*',
+        MUST_EXIST
+    );
 
     if ($action === 'publish') {
         require_sesskey();
         manager::publish($job);
-        redirect($baseurl, get_string('quizpublished', 'local_aiquiz'), null,
-            \core\output\notification::NOTIFY_SUCCESS);
-
+        redirect(
+            $baseurl,
+            get_string('quizpublished', 'local_aiquiz'),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
     } else if ($action === 'unpublish') {
         require_sesskey();
         manager::unpublish($job);
-        redirect($baseurl, get_string('quizunpublished', 'local_aiquiz'), null,
-            \core\output\notification::NOTIFY_SUCCESS);
-
+        redirect(
+            $baseurl,
+            get_string('quizunpublished', 'local_aiquiz'),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
     } else if ($action === 'delete') {
         if ($confirm) {
             require_sesskey();
             manager::delete($job);
-            redirect($baseurl, get_string('quizdeleted', 'local_aiquiz'), null,
-                \core\output\notification::NOTIFY_SUCCESS);
+            redirect(
+                $baseurl,
+                get_string('quizdeleted', 'local_aiquiz'),
+                null,
+                \core\output\notification::NOTIFY_SUCCESS
+            );
         }
 
         $quizname = $DB->get_field('quiz', 'name', ['id' => $job->quizid]);
@@ -84,8 +98,11 @@ if ($action && $jobid) {
 
         echo $OUTPUT->header();
         echo $OUTPUT->heading(get_string('pluginname', 'local_aiquiz'));
-        echo $OUTPUT->confirm(get_string('confirmdeletequiz', 'local_aiquiz', $quizname),
-            $confirmurl, $baseurl);
+        echo $OUTPUT->confirm(
+            get_string('confirmdeletequiz', 'local_aiquiz', $quizname),
+            $confirmurl,
+            $baseurl
+        );
         echo $OUTPUT->footer();
         die();
     }
@@ -113,9 +130,14 @@ echo $OUTPUT->heading(get_string('pluginname', 'local_aiquiz'));
 
 $createurl = new moodle_url('/local/aiquiz/create.php', ['courseid' => $course->id]);
 echo html_writer::div(
-    $OUTPUT->single_button($createurl, get_string('generatenewquiz', 'local_aiquiz'), 'get',
-        ['type' => single_button::BUTTON_PRIMARY]),
-    'mb-3');
+    $OUTPUT->single_button(
+        $createurl,
+        get_string('generatenewquiz', 'local_aiquiz'),
+        'get',
+        ['type' => single_button::BUTTON_PRIMARY]
+    ),
+    'mb-3'
+);
 
 if (empty($jobs)) {
     echo $OUTPUT->notification(get_string('noquizzesyet', 'local_aiquiz'), 'info', false);
@@ -163,10 +185,13 @@ foreach ($jobs as $job) {
     $createdcell = fullname($job)
         . html_writer::div(
             userdate($job->timecreated, get_string('strftimedatetimeshort', 'langconfig')),
-            'text-muted small');
+            'text-muted small'
+        );
 
-    $statecell = html_writer::span(get_string('state' . $state, 'local_aiquiz'),
-        'badge ' . $statebadges[$state]);
+    $statecell = html_writer::span(
+        get_string('state' . $state, 'local_aiquiz'),
+        'badge ' . $statebadges[$state]
+    );
 
     // Actions depend on the state.
     $actions = [];
@@ -178,20 +203,31 @@ foreach ($jobs as $job) {
     if ($job->cmid && ($state === manager::STATE_READY || $state === manager::STATE_PUBLISHED)) {
         $actions[] = html_writer::link(
             new moodle_url('/mod/quiz/edit.php', ['cmid' => $job->cmid]),
-            get_string('review', 'local_aiquiz'), ['class' => 'btn btn-secondary btn-sm']);
+            get_string('review', 'local_aiquiz'),
+            ['class' => 'btn btn-secondary btn-sm']
+        );
     }
     if ($state === manager::STATE_READY) {
-        $actions[] = html_writer::link($actionurl('publish'),
-            get_string('publish', 'local_aiquiz'), ['class' => 'btn btn-primary btn-sm']);
+        $actions[] = html_writer::link(
+            $actionurl('publish'),
+            get_string('publish', 'local_aiquiz'),
+            ['class' => 'btn btn-primary btn-sm']
+        );
     }
     if ($state === manager::STATE_PUBLISHED) {
-        $actions[] = html_writer::link($actionurl('unpublish'),
-            get_string('unpublish', 'local_aiquiz'), ['class' => 'btn btn-secondary btn-sm']);
+        $actions[] = html_writer::link(
+            $actionurl('unpublish'),
+            get_string('unpublish', 'local_aiquiz'),
+            ['class' => 'btn btn-secondary btn-sm']
+        );
     }
     if ($state !== manager::STATE_PUBLISHED) {
         $deleteurl = new moodle_url($baseurl, ['action' => 'delete', 'jobid' => $job->id]);
-        $actions[] = html_writer::link($deleteurl, get_string('delete'),
-            ['class' => 'btn btn-outline-danger btn-sm']);
+        $actions[] = html_writer::link(
+            $deleteurl,
+            get_string('delete'),
+            ['class' => 'btn btn-outline-danger btn-sm']
+        );
     }
 
     $table->data[] = [
