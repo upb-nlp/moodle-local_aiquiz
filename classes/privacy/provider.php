@@ -170,7 +170,7 @@ class provider implements core_userlist_provider, metadata_provider, request_pro
         if (!$context instanceof \context_course) {
             return;
         }
-        $DB->delete_records('local_aiquiz_jobs', ['courseid' => $context->instanceid]);
+        self::delete_jobs('courseid = :courseid', ['courseid' => $context->instanceid]);
     }
 
     /**
@@ -186,7 +186,10 @@ class provider implements core_userlist_provider, metadata_provider, request_pro
             if (!$context instanceof \context_course) {
                 continue;
             }
-            $DB->delete_records('local_aiquiz_jobs', ['courseid' => $context->instanceid, 'userid' => $userid]);
+            self::delete_jobs(
+                'courseid = :courseid AND userid = :userid',
+                ['courseid' => $context->instanceid, 'userid' => $userid]
+            );
         }
     }
 
@@ -205,6 +208,22 @@ class provider implements core_userlist_provider, metadata_provider, request_pro
 
         [$insql, $params] = $DB->get_in_or_equal($userlist->get_userids(), SQL_PARAMS_NAMED);
         $params['courseid'] = $context->instanceid;
-        $DB->delete_records_select('local_aiquiz_jobs', "courseid = :courseid AND userid $insql", $params);
+        self::delete_jobs("courseid = :courseid AND userid $insql", $params);
+    }
+
+    /**
+     * Delete matching jobs, and the temporary download keys of unfinished ones.
+     *
+     * @param string $select SQL condition on local_aiquiz_jobs.
+     * @param array $params
+     */
+    protected static function delete_jobs(string $select, array $params): void {
+        global $DB;
+
+        $keyids = $DB->get_fieldset_select('local_aiquiz_jobs', 'filekeyid', "($select) AND filekeyid IS NOT NULL", $params);
+        if ($keyids) {
+            $DB->delete_records_list('user_private_key', 'id', $keyids);
+        }
+        $DB->delete_records_select('local_aiquiz_jobs', $select, $params);
     }
 }

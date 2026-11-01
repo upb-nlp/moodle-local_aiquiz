@@ -33,6 +33,8 @@ use local_aiquiz\form\generate_form;
  * them. These are assembled at runtime - 'state' . $state, "type{$key}", an
  * error code handed to moodle_exception - so nothing but a run notices when
  * one of them is missing and the page renders [[stateready]].
+ *
+ * @coversNothing
  */
 final class lang_test extends \advanced_testcase {
     /**

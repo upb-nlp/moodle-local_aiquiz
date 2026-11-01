@@ -164,6 +164,8 @@ try {
                 $response = ['ok' => false, 'error' => $e->getMessage()];
             }
         }
+        // Done or failed, the service has no more files to fetch.
+        manager::revoke_file_key($job);
         $job->timemodified = time();
         $DB->update_record('local_aiquiz_jobs', $job);
     }

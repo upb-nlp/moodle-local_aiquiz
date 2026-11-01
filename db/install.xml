@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/aiquiz/db" VERSION="20260806" COMMENT="Tables for the AI quiz generator plugin."
+<XMLDB PATH="local/aiquiz/db" VERSION="20261101" COMMENT="Tables for the AI quiz generator plugin."
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -9,6 +9,7 @@
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="requestid" TYPE="char" LENGTH="36" NOTNULL="true" SEQUENCE="false" COMMENT="The request_id sent to the service and returned by its callback."/>
         <FIELD NAME="remotejobid" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false" COMMENT="The job_id the service assigned, kept so a job can be traced in its logs."/>
+        <FIELD NAME="filekeyid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="The user_private_key row of the job's temporary file download key, deleted when the job finishes."/>
         <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Course the quiz belongs to."/>
         <FIELD NAME="quizid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="The quiz instance waiting for questions."/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Teacher who requested the generation."/>

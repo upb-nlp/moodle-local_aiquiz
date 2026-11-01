@@ -50,6 +50,9 @@ class manager {
     /** @var string Dashboard state: generation failed. */
     const STATE_FAILED = 'failed';
 
+    /** @var int Seconds the service has to download a job's files. */
+    const FILE_KEY_LIFETIME = DAYSECS;
+
     /**
      * Create the hidden quiz and the job row for a submitted generation form.
      *
@@ -94,40 +97,26 @@ class manager {
      * described by a tokenpluginfile.php URL that lets the service pull the
      * content itself.
      *
-     * Mind what that token is: get_user_key('core_files', $userid), created
-     * with no validuntil and no iprestriction, and reused across jobs. It
-     * authenticates the teacher rather than the file, so it reaches anything
-     * they can read through tokenpluginfile.php, it does not expire, and the
-     * same value leaves the site in every request. Minting a short-lived key
-     * per job would need the URL built by hand, since make_pluginfile_url()
-     * does not expose get_user_key()'s $validuntil.
+     * The token in those URLs is a key issued for this job alone (see
+     * issue_file_key()): it expires after FILE_KEY_LIFETIME and is deleted as
+     * soon as the job finishes, instead of the teacher's permanent
+     * core_files key, which would reach their files indefinitely.
      *
-     * @param \stdClass $job The job record.
+     * @param \stdClass $job The job record. Its filekeyid is updated.
      * @return array The JSON-ready request body.
      */
     public static function build_request(\stdClass $job): array {
         $params = json_decode($job->params ?? '', true) ?: [];
         $files = file_lister::get_files_by_ids($params['fileids'] ?? [], $job->courseid);
+        $token = $files ? self::issue_file_key($job) : null;
 
         $sourcefiles = [];
         foreach ($files as $file) {
-            // Passing includetoken = userid mints a tokenpluginfile.php URL scoped to
-            // the teacher, so the pull is authorised as them.
-            $url = \moodle_url::make_pluginfile_url(
-                $file->get_contextid(),
-                $file->get_component(),
-                $file->get_filearea(),
-                $file->get_itemid(),
-                $file->get_filepath(),
-                $file->get_filename(),
-                true,
-                $job->userid
-            );
             $sourcefiles[] = [
                 'file_id' => (string) $file->get_id(),
                 'filename' => $file->get_filename(),
                 'mime_type' => $file->get_mimetype(),
-                'url' => $url->out(false),
+                'url' => self::token_file_url($file, $token),
                 // The service treats this as optional. Moodle's contenthash is
                 // SHA-1, so it cannot be reused, and hashing every file just to
                 // fill the field would mean reading them all for nothing.
@@ -148,6 +137,66 @@ class manager {
             ],
             'source_files' => $sourcefiles,
         ];
+    }
+
+    /**
+     * Issue the job's temporary file download key, replacing any earlier one.
+     *
+     * A core_files key logs the service in as the teacher for
+     * tokenpluginfile.php only. This one is tied to the job: it expires after
+     * FILE_KEY_LIFETIME and revoke_file_key() deletes it when the job ends.
+     *
+     * @param \stdClass $job The job record. Its filekeyid is set.
+     * @return string The key value to put in the download URLs.
+     */
+    public static function issue_file_key(\stdClass $job): string {
+        global $CFG, $DB;
+        require_once($CFG->libdir . '/moodlelib.php');
+
+        self::revoke_file_key($job);
+        $value = create_user_key('core_files', $job->userid, null, null, time() + self::FILE_KEY_LIFETIME);
+        $job->filekeyid = (int) $DB->get_field('user_private_key', 'id', ['script' => 'core_files', 'value' => $value]);
+        $DB->set_field('local_aiquiz_jobs', 'filekeyid', $job->filekeyid, ['id' => $job->id]);
+        return $value;
+    }
+
+    /**
+     * Delete the job's temporary file download key, if it has one.
+     *
+     * @param \stdClass $job The job record. Its filekeyid is cleared.
+     */
+    public static function revoke_file_key(\stdClass $job): void {
+        global $DB;
+
+        if (!empty($job->filekeyid)) {
+            $DB->delete_records('user_private_key', ['id' => $job->filekeyid, 'script' => 'core_files']);
+            $DB->set_field('local_aiquiz_jobs', 'filekeyid', null, ['id' => $job->id]);
+        }
+        $job->filekeyid = null;
+    }
+
+    /**
+     * A tokenpluginfile.php URL for a stored file, carrying the given key.
+     *
+     * Built by hand because make_pluginfile_url() only ever uses the user's
+     * permanent key.
+     *
+     * @param \stored_file $file
+     * @param string $token The key value.
+     * @return string
+     */
+    public static function token_file_url(\stored_file $file, string $token): string {
+        global $CFG;
+
+        $path = '/' . $file->get_contextid() . '/' . $file->get_component() . '/' . $file->get_filearea()
+            . '/' . $file->get_itemid() . $file->get_filepath() . $file->get_filename();
+        if (!empty($CFG->slasharguments)) {
+            $url = \moodle_url::make_file_url($CFG->wwwroot . '/tokenpluginfile.php', '/' . $token . $path);
+        } else {
+            $url = \moodle_url::make_file_url($CFG->wwwroot . '/tokenpluginfile.php', $path);
+            $url->param('token', $token);
+        }
+        return $url->out(false);
     }
 
     /**
@@ -267,6 +316,7 @@ class manager {
         global $CFG, $DB;
         require_once($CFG->dirroot . '/course/lib.php');
 
+        self::revoke_file_key($job);
         if ($job->quizid && ($cm = get_coursemodule_from_instance('quiz', $job->quizid, $job->courseid))) {
             course_delete_module($cm->id);
         }

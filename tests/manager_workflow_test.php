@@ -389,4 +389,68 @@ final class manager_workflow_test extends \advanced_testcase {
         $this->assertStringContainsString('tokenpluginfile.php', $source['url']);
         $this->assertNull($source['checksum_sha256']);
     }
+
+    /**
+     * The URLs carry a key of the job's own that expires and is revoked.
+     *
+     * Not the teacher's permanent core_files key, which would keep working
+     * for as long as it exists.
+     */
+    public function test_file_urls_use_a_temporary_job_key(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $course = $this->getDataGenerator()->create_course();
+        $instance = $this->getDataGenerator()->get_plugin_generator('mod_resource')
+            ->create_instance(['course' => $course->id]);
+        $cm = get_coursemodule_from_instance('resource', $instance->id, $course->id, false, MUST_EXIST);
+        $file = get_file_storage()->create_file_from_string([
+            'contextid' => \context_module::instance($cm->id)->id,
+            'component' => 'mod_resource',
+            'filearea' => 'content',
+            'itemid' => 0,
+            'filepath' => '/',
+            'filename' => 'chapter 1.txt',
+        ], 'Handout.');
+
+        $job = manager::create_job(self::form_data(['fileids' => [$file->get_id()]]), $course);
+        $url = manager::build_request($job)['source_files'][0]['url'];
+
+        $key = $DB->get_record('user_private_key', ['id' => $job->filekeyid], '*', MUST_EXIST);
+        $this->assertEquals('core_files', $key->script);
+        $this->assertEquals($job->userid, $key->userid);
+        $this->assertGreaterThan(time(), (int) $key->validuntil);
+        $this->assertLessThanOrEqual(time() + manager::FILE_KEY_LIFETIME, (int) $key->validuntil);
+        $this->assertStringContainsString('/tokenpluginfile.php/' . $key->value . '/', $url);
+        $this->assertStringContainsString('chapter%201.txt', $url);
+        $this->assertNotEquals(get_user_key('core_files', $job->userid), $key->value);
+
+        // Building the request again (a retried task) replaces the key.
+        $oldkeyid = $job->filekeyid;
+        manager::build_request($job);
+        $this->assertFalse($DB->record_exists('user_private_key', ['id' => $oldkeyid]));
+        $this->assertEquals(1, $DB->count_records('user_private_key', ['id' => $job->filekeyid]));
+
+        manager::revoke_file_key($job);
+        $this->assertFalse($DB->record_exists('user_private_key', ['id' => $key->id]));
+        $this->assertNull($DB->get_field('local_aiquiz_jobs', 'filekeyid', ['id' => $job->id]));
+    }
+
+    /**
+     * Deleting a job also deletes its download key.
+     */
+    public function test_delete_revokes_the_file_key(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $course = $this->getDataGenerator()->create_course();
+        $job = manager::create_job(self::form_data(), $course);
+        manager::issue_file_key($job);
+        $keyid = $job->filekeyid;
+
+        manager::delete($job);
+        $this->assertFalse($DB->record_exists('user_private_key', ['id' => $keyid]));
+    }
 }

@@ -29,6 +29,8 @@ namespace local_aiquiz;
  *
  * Both pages call require_capability() with this one capability, so it is the
  * whole access control story for the plugin.
+ *
+ * @covers ::local_aiquiz_extend_navigation_course
  */
 final class access_test extends \advanced_testcase {
     /** @var string The capability guarding every page in the plugin. */

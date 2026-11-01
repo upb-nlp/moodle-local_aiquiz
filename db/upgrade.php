@@ -133,5 +133,18 @@ function xmldb_local_aiquiz_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026080600, 'local', 'aiquiz');
     }
 
+    if ($oldversion < 2026110100) {
+        // Each job now downloads its files with its own short-lived key
+        // instead of the teacher's permanent one; this is where its id lives
+        // until the job finishes and the key is deleted.
+        $table = new xmldb_table('local_aiquiz_jobs');
+        $field = new xmldb_field('filekeyid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'remotejobid');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026110100, 'local', 'aiquiz');
+    }
+
     return true;
 }

@@ -67,9 +67,9 @@ generated questions to the callback URL.
 The plugin stores one record per generation request (the requesting teacher,
 course, quiz and settings). It sends the learning objectives and download links
 for the selected course files to the configured external service. The download
-links contain the requesting teacher's file access key. The plugin implements
-the Moodle Privacy API, so this data appears in data requests and can be
-deleted.
+links carry a key issued for that one request: it expires after a day and is
+deleted as soon as the generation finishes. The plugin implements the Moodle
+Privacy API, so this data appears in data requests and can be deleted.
 
 ## License
 
